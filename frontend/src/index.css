@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-gradient-to-br from-green-50 via-blue-50 to-white min-h-screen font-sans text-gray-900;
+}
+
+.avatar-circle {
+  @apply w-12 h-12 rounded-full flex items-center justify-center bg-gradient-to-br from-green-400 to-blue-500 text-white font-bold shadow-lg;
+}
+
+.card {
+  @apply bg-white rounded-xl shadow-lg p-4;
+}

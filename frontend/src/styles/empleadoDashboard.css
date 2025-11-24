@@ -1,0 +1,538 @@
+/* ========================================================
+      🔮 MODO C — DROGUERÍA MODERNA MORADO PREMIUM
+======================================================== */
+
+/* --------------------------------------------------------
+   RESET + TIPOGRAFÍA
+-------------------------------------------------------- */
+body, html {
+  margin: 0;
+  padding: 0;
+  font-family: "Inter", sans-serif;
+  background: #f5f3ff;          /* Lavanda claro */
+  color: #1e1b4b;               /* Morado profundo */
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* --------------------------------------------------------
+   CONTENEDORES GENERALES PARA TODOS LOS PANELES
+-------------------------------------------------------- */
+.panel-empleado,
+.panel-factura,
+.panel-pedidos,
+.panel-medicamentos {
+  max-width: 1250px;
+  margin: 35px auto;
+  background: #ffffff;
+  padding: 32px;
+  border-radius: 20px;
+  box-shadow: 0 10px 35px rgba(80, 50, 160, 0.12);
+  animation: fadeIn 0.4s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.panel-empleado {
+  max-width: 900px;
+  margin: 2rem auto;
+  padding: 1rem;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Estilo general para el panel de pedidos */
+.panel-pedidos {
+  padding: 1.5rem;
+  background-color: #faf5ff; /* Fondo lila claro */
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+h2 {
+  text-align: center;
+  font-size: 2rem;
+  font-weight: 800;
+  color: #4c1d95; /* Morado premium */
+  margin-bottom: 10px;
+}
+
+h3 {
+  font-size: 1.3rem;
+  color: #6d28d9;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.titulo {
+  text-align: center;
+  font-size: 1.8rem;
+  margin-bottom: 1.5rem;
+}
+
+.acciones-superiores {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.campo-busqueda {
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  width: 60%;
+}
+
+.btn-nuevo {
+  background-color: #6d28d9; /* Morado */
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-nuevo:hover {
+  background-color: #5b21b6; /* Morado más oscuro */
+}
+
+/* --------------------------------------------------------
+   BOTONES (CRUD + ACCIONES)
+-------------------------------------------------------- */
+.btn {
+  padding: 10px 18px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: all 0.25s ease;
+}
+
+/* Primario */
+.btn-primary {
+  background: #6d28d9;
+  color: white;
+  box-shadow: 0 4px 14px rgba(109,40,217,0.3);
+}
+.btn-primary:hover {
+  background: #5b21b6;
+  transform: scale(1.03);
+}
+
+/* Editar */
+.btn-edit {
+  background: #7c3aed;
+  color: white;
+}
+.btn-edit:hover {
+  background: #6d28d9;
+  transform: scale(1.03);
+}
+
+/* Eliminar */
+.btn-delete {
+  background: #e11d48;
+  color: white;
+}
+.btn-delete:hover {
+  background: #be123c;
+  transform: scale(1.03);
+}
+
+/* Secundario */
+.btn-ghost {
+  background: transparent;
+  border: 1px solid #d1c4ff;
+  color: #4c1d95;
+}
+.btn-ghost:hover {
+  background: #ede9fe;
+  transform: scale(1.03);
+}
+
+/* Agregar */
+.btn-add {
+  background: #9333ea;
+  color: white;
+  box-shadow: 0 4px 14px rgba(147,51,234,0.25);
+}
+.btn-add:hover {
+  background: #7e22ce;
+  transform: scale(1.03);
+}
+
+.btn-accion {
+  padding: 0.4rem 0.8rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.btn-editar {
+  background-color: #ffc107;
+  color: #fff;
+}
+
+.btn-ver {
+  background-color: #17a2b8;
+  color: #fff;
+}
+
+.btn-eliminar {
+  background-color: #dc3545;
+  color: #fff;
+}
+
+.btn-descargar {
+  background-color: #28a745;
+  color: #fff;
+}
+
+.btn-accion:hover {
+  opacity: 0.9;
+}
+
+/* --------------------------------------------------------
+   FORMULARIOS GENERALES
+-------------------------------------------------------- */
+form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 18px;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #c7bceb;
+  background: #faf5ff;
+  font-size: 0.95rem;
+  transition: all 0.25s ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 3px rgba(124,58,237,0.2);
+  background: white;
+}
+
+textarea[name="descripcion"] {
+  width: 100%;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  font-size: 0.9rem;
+  resize: none; /* Evita que el usuario cambie el tamaño */
+}
+
+/* --------------------------------------------------------
+   MENSAJES DE ALERTA O CONFIRMACIÓN
+-------------------------------------------------------- */
+.mensaje {
+  padding: 14px;
+  border-radius: 12px;
+  font-weight: 500;
+  animation: fadeIn 0.3s ease;
+  background: #ede9fe;
+  border-left: 6px solid #7c3aed;
+  color: #4c1d95;
+  text-align: center;
+  margin-top: 1rem;
+  color: #28a745;
+}
+
+/* --------------------------------------------------------
+   TABLAS (Medicamentos, Pedidos, Facturas)
+-------------------------------------------------------- */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 14px;
+  background: white;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 5px 25px rgba(80,50,160,0.08);
+}
+
+th {
+  background: #e9d5ff;
+  padding: 12px;
+  font-weight: 700;
+  color: #4c1d95;
+  text-align: center;
+}
+
+td {
+  padding: 12px;
+  border-bottom: 1px solid #efeaff;
+  text-align: center;
+  color: #4b465b;
+}
+
+tr:hover {
+  background: #f5f3ff;
+}
+
+.tabla-medicamentos {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+  font-size: 1.1rem;
+}
+
+.tabla-medicamentos th,
+.tabla-medicamentos td {
+  border: 1px solid #ddd;
+  padding: 1rem;
+  text-align: left;
+}
+
+.tabla-medicamentos th {
+  background-color: #f4f4f4;
+  font-size: 1.2rem;
+}
+
+.tabla-medicamentos tr:hover {
+  background-color: #f9f9f9;
+}
+
+/* Estilo para la tabla de pedidos */
+.tabla-pedidos {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+  font-size: 1rem;
+  background-color: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.tabla-pedidos th,
+.tabla-pedidos td {
+  padding: 12px;
+  text-align: center;
+}
+
+.tabla-pedidos th {
+  background-color: #e9d5ff; /* Lila más oscuro */
+  color: #4c1d95; /* Morado profundo */
+  font-weight: bold;
+}
+
+.tabla-pedidos tr:nth-child(even) {
+  background-color: #f5f3ff; /* Lila claro */
+}
+
+.tabla-pedidos tr:hover {
+  background-color: #ede9fe; /* Lila más claro */
+}
+
+/* --------------------------------------------------------
+   TARJETAS — FACTURAS Y PEDIDOS
+-------------------------------------------------------- */
+.cards-container {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;     /* permite varias filas */
+  gap: 20px;
+  justify-content: flex-start;   /* alineadas a la izquierda */
+  align-items: flex-start;
+  padding: 20px;
+}
+.card {
+  background: #faf5ff;
+  border: 1px solid #e5d8ff;
+  border-radius: 16px;
+  padding: 20px;
+  width: 300px;
+  box-shadow: 0 8px 24px rgba(80, 50, 160, 0.1);
+  transition: all 0.3s ease;
+}
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px rgba(80, 50, 160, 0.14);
+}
+
+.grid-pedidos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+
+.card-header,
+.card-footer {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 700;
+  color: #4c1d95;
+}
+
+/* --------------------------------------------------------
+   GRID PARA TARJETAS
+-------------------------------------------------------- */
+.grid-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(370px, 1fr));
+  gap: 25px;
+}
+
+/* --------------------------------------------------------
+   BADGES — Estados de pedidos
+-------------------------------------------------------- */
+.badge {
+  padding: 6px 12px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* Colores morados elegantes */
+.badge-pendiente { background: #f3e8ff; color: #6b21a8; }
+.badge-en-proceso { background: #e9d5ff; color: #4c1d95; }
+.badge-completado { background: #d9f99d; color: #3f6212; }
+.badge-cancelado { background: #fee2e2; color: #b91c1c; }
+
+/* Estilo para los badges */
+.badge {
+  padding: 0.3rem 0.6rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  text-transform: capitalize;
+}
+
+.badge-pendiente {
+  background-color: #f3e8ff;
+  color: #6b21a8;
+}
+
+.badge-procesado {
+  background-color: #e9d5ff;
+  color: #4c1d95;
+}
+
+.badge-entregado {
+  background-color: #d9f99d;
+  color: #3f6212;
+}
+
+.badge-cancelado {
+  background-color: #fee2e2;
+  color: #b91c1c;
+}
+
+/* --------------------------------------------------------
+   DETALLES DE FACTURA
+-------------------------------------------------------- */
+.detalle-item {
+  background: #faf5ff;
+  padding: 15px;
+  border-radius: 14px;
+  border: 1px solid #e5d8ff;
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 12px;
+}
+
+/* --------------------------------------------------------
+   MODAL
+-------------------------------------------------------- */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-contenido {
+  background: #fff;
+  padding: 2rem;
+  border-radius: 8px;
+  width: 400px;
+}
+
+.modal-acciones {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 1rem;
+}
+
+.btn-guardar {
+  background-color: #28a745;
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+}
+
+.btn-cancelar {
+  background-color: #6c757d;
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+}
+
+/* --------------------------------------------------------
+   ANIMACIÓN
+-------------------------------------------------------- */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* --------------------------------------------------------
+   RESPONSIVE
+-------------------------------------------------------- */
+@media (max-width: 768px) {
+  .detalle-item {
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+  }
+}
+
+/* --------------------------------------------------------
+   ACCIONES HORIZONTALES
+-------------------------------------------------------- */
+.acciones-horizontal {
+  display: flex;
+  gap: 0.5rem; /* Espaciado entre los botones */
+}
+
+.cabecera {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.cabecera h2 {
+  font-size: 1.5rem;
+  color: #4c1d95; /* Morado profundo */
+}

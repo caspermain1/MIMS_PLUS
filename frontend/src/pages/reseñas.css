@@ -1,0 +1,151 @@
+/* ==================================================
+   🌐 SECCIÓN: ESTILOS GENERALES DE LA PÁGINA
+   ================================================== */
+   .reseñas-page {
+    background-color: #F8F9FA;
+    padding: 3rem 1.5rem;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  /* ==================================================
+     🎯 SECCIÓN: TÍTULO PRINCIPAL
+     ================================================== */
+  .reseñas-title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #0D6EFD;
+    margin-bottom: 0.5rem;
+    text-align: center;
+  }
+  
+  .reseñas-subtitle {
+    font-size: 1.125rem;
+    color: #6C757D;
+    text-align: center;
+    max-width: 40rem;
+    margin: 0 auto 2rem;
+    line-height: 1.6;
+  }
+  
+  /* ==================================================
+     📦 SECCIÓN: GRID DE TARJETAS DE RESEÑAS
+     ================================================== */
+  .reseñas-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    width: 100%;
+    max-width: 1200px;
+  }
+  
+  /* ==================================================
+     🗣️ SECCIÓN: TARJETA DE RESEÑA INDIVIDUAL
+     ================================================== */
+  .reseña-card {
+    background: white;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+    border: 1px solid #E9ECEF;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  
+  .reseña-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
+    border-color: #0D6EFD;
+  }
+  
+  /* ==================================================
+     💬 SECCIÓN: ÍCONO DE COMILLAS
+     ================================================== */
+  .quote-icon {
+    font-size: 2rem;
+    color: #B3CDE3; /* Azul claro */
+    margin-bottom: 0.75rem;
+    align-self: flex-start;
+  }
+  
+  /* ==================================================
+     ⭐ SECCIÓN: ESTRELLAS
+     ================================================== */
+  .stars-container {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 0.75rem;
+  }
+  
+  .star {
+    width: 20px;
+    height: 20px;
+    fill: #FFC107; /* Amarillo */
+    stroke: #FFC107;
+    stroke-width: 2;
+  }
+  
+  .star.empty {
+    fill: none;
+    stroke: #E9ECEF;
+  }
+  
+  /* ==================================================
+     📝 SECCIÓN: TEXTO DE LA RESEÑA
+     ================================================== */
+  .reseña-text {
+    color: #212529;
+    line-height: 1.6;
+    margin-bottom: 1rem;
+    flex-grow: 1;
+  }
+  
+  /* ==================================================
+     👤 SECCIÓN: INFORMACIÓN DEL CLIENTE
+     ================================================== */
+  .client-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: auto;
+  }
+  
+  .client-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: #E9ECEF;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    color: #0D6EFD;
+    font-size: 0.875rem;
+  }
+  
+  .client-name {
+    font-weight: 600;
+    color: #212529;
+  }
+  
+  .client-role {
+    font-size: 0.875rem;
+    color: #6C757D;
+    font-style: italic;
+  }
+  
+  /* ==================================================
+     🚫 SECCIÓN: MENSAJE CUANDO NO HAY RESEÑAS
+     ================================================== */
+  .no-reseñas {
+    text-align: center;
+    color: #6C757D;
+    font-size: 1.125rem;
+    padding: 2rem;
+    width: 100%;
+    grid-column: 1 / -1;
+  }
