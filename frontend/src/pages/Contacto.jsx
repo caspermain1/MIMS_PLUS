@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import axios from "axios";
 
 export default function Contacto() {
@@ -6,13 +6,49 @@ export default function Contacto() {
   const [correo, setCorreo] = useState("");
   const [asunto, setAsunto] = useState("");
   const [mensaje, setMensaje] = useState("");
-  const [calificacion, setCalificacion] = useState(0); // Nueva calificación
+  const [calificacion, setCalificacion] = useState(0);
   const [enviando, setEnviando] = useState(false);
   const [exito, setExito] = useState(false);
   const [error, setError] = useState(null);
+  const debounceTimer = useRef(null);
+
+  const validarEmail = (email) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validaciones
+    if (!nombre.trim()) {
+      setError("❌ Por favor ingresa tu nombre");
+      return;
+    }
+    if (!correo.trim()) {
+      setError("❌ Por favor ingresa tu correo");
+      return;
+    }
+    if (!validarEmail(correo)) {
+      setError("❌ Por favor ingresa un correo válido");
+      return;
+    }
+    if (!asunto.trim()) {
+      setError("❌ Por favor ingresa un asunto");
+      return;
+    }
+    if (!mensaje.trim()) {
+      setError("❌ Por favor ingresa tu mensaje");
+      return;
+    }
+    if (mensaje.length < 10) {
+      setError("❌ El mensaje debe tener al menos 10 caracteres");
+      return;
+    }
+    if (calificacion === 0) {
+      setError("❌ Por favor califica tu experiencia");
+      return;
+    }
+
     setEnviando(true);
     setExito(false);
     setError(null);
@@ -23,23 +59,23 @@ export default function Contacto() {
       formData.append("correo", correo);
       formData.append("asunto", asunto);
       formData.append("mensaje", mensaje);
-      formData.append("calificacion", calificacion); // Enviar calificación
+      formData.append("calificacion", calificacion);
 
-      const response = await axios.post(
+      await axios.post(
         "http://127.0.0.1:8000/api/mensajes/mensajes/",
         formData,
         { headers: { "Content-Type": "multipart/form-data" } }
       );
 
-      console.log("✅ Mensaje enviado correctamente:", response.data);
       setExito(true);
       setNombre("");
       setCorreo("");
       setAsunto("");
       setMensaje("");
-      setCalificacion(0); // Reiniciar calificación
+      setCalificacion(0);
+      setError(null);
     } catch (err) {
-      console.error("Error al enviar el mensaje:", err);
+      console.error("Error al enviar:", err);
       setError("❌ Hubo un problema al enviar tu mensaje. Intenta de nuevo.");
     } finally {
       setEnviando(false);

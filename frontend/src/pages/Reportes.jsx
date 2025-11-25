@@ -12,21 +12,57 @@ export default function Reportes() {
   const [editForm, setEditForm] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
+  const [fechaInicio, setFechaInicio] = useState("");
+  const [fechaFin, setFechaFin] = useState("");
 
-  const base = "/facturas/facturas/"; // ✅ ruta correcta del ViewSet
+  const base = "/facturas/facturas/";
 
   useEffect(() => {
     cargarFacturas();
   }, []);
 
-  // ==========================================
-  //  CARGAR FACTURAS
-  // ==========================================
+  useEffect(() => {
+    const t = setTimeout(() => cargarFacturas(), 300);
+    return () => clearTimeout(t);
+  }, [busqueda, page, fechaInicio, fechaFin]);
+
+  // CARGAR FACTURAS
   const cargarFacturas = async () => {
     setLoading(true);
     try {
       const res = await api.get(base);
-      setFacturas(res.data);
+      let allFacturas = res.data || [];
+
+      // Filtrar por búsqueda
+      if (busqueda) {
+        allFacturas = allFacturas.filter((f) =>
+          f.cliente?.username?.toLowerCase().includes(busqueda.toLowerCase()) ||
+          f.id.toString().includes(busqueda)
+        );
+      }
+
+      // Filtrar por rango de fechas
+      if (fechaInicio) {
+        allFacturas = allFacturas.filter(
+          (f) => new Date(f.fecha_emision) >= new Date(fechaInicio)
+        );
+      }
+      if (fechaFin) {
+        allFacturas = allFacturas.filter(
+          (f) => new Date(f.fecha_emision) <= new Date(fechaFin)
+        );
+      }
+
+      setTotalCount(allFacturas.length);
+
+      // Aplicar paginación
+      const inicio = (page - 1) * pageSize;
+      const fin = inicio + pageSize;
+      setFacturas(allFacturas.slice(inicio, fin));
     } catch (err) {
       console.error("Error cargando facturas:", err);
       alert("Error al cargar facturas");

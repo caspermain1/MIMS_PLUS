@@ -39,13 +39,34 @@ export default function CambiarPassword() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-
-    if (formData.nueva_contrasena !== formData.confirmar_contrasena) {
-      setError("Las contraseñas no coinciden.");
-      setLoading(false);
+    
+    // Validaciones
+    if (!formData.email.trim()) {
+      setError("Por favor ingresa tu correo");
       return;
     }
+    if (!formData.codigo.trim()) {
+      setError("Por favor ingresa el código de recuperación");
+      return;
+    }
+    if (formData.nueva_contrasena.length < 8) {
+      setError("La contraseña debe tener al menos 8 caracteres");
+      return;
+    }
+    if (!/[A-Z]/.test(formData.nueva_contrasena)) {
+      setError("La contraseña debe contener al menos una mayúscula");
+      return;
+    }
+    if (!/[0-9]/.test(formData.nueva_contrasena)) {
+      setError("La contraseña debe contener al menos un número");
+      return;
+    }
+    if (formData.nueva_contrasena !== formData.confirmar_contrasena) {
+      setError("Las contraseñas no coinciden");
+      return;
+    }
+
+    setLoading(true);
 
     try {
       const res = await axios.post(
@@ -55,6 +76,7 @@ export default function CambiarPassword() {
       );
 
       setMensaje(res.data.mensaje || "Contraseña actualizada correctamente.");
+      setError("");
 
       setTimeout(() => navigate("/login"), 2000);
     } catch (err) {

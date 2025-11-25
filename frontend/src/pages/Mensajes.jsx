@@ -4,16 +4,42 @@ import axios from "axios";
 export default function Mensajes() {
   const [mensajes, setMensajes] = useState([]);
   const [cargando, setCargando] = useState(true);
-  const [busqueda, setBusqueda] = useState(""); // Estado para la búsqueda
+  const [busqueda, setBusqueda] = useState("");
+  const [filtroLeido, setFiltroLeido] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
 
   const API_MENSAJES = "http://127.0.0.1:8000/api/mensajes/mensajes/";
   const API_RESENAS = "http://127.0.0.1:8000/api/mensajes/resenas/";
 
-  // 📥 Cargar mensajes desde el backend
+  // Cargar mensajes desde el backend
   const obtenerMensajes = async () => {
+    setCargando(true);
     try {
       const res = await axios.get(API_MENSAJES);
-      setMensajes(res.data);
+      let allMensajes = res.data || [];
+
+      // Filtrar por búsqueda
+      if (busqueda) {
+        allMensajes = allMensajes.filter((m) =>
+          m.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
+          m.mensaje.toLowerCase().includes(busqueda.toLowerCase()) ||
+          m.correo.toLowerCase().includes(busqueda.toLowerCase())
+        );
+      }
+
+      // Filtrar por estado de lectura
+      if (filtroLeido !== "") {
+        allMensajes = allMensajes.filter((m) => m.leido === (filtroLeido === "leido"));
+      }
+
+      setTotalCount(allMensajes.length);
+
+      // Aplicar paginación
+      const inicio = (page - 1) * pageSize;
+      const fin = inicio + pageSize;
+      setMensajes(allMensajes.slice(inicio, fin));
     } catch (error) {
       console.error("Error al obtener mensajes:", error);
       alert("❌ Error al cargar los mensajes desde el servidor");
@@ -22,63 +48,14 @@ export default function Mensajes() {
     }
   };
 
-  // ✅ Marcar mensaje como leído
-  const marcarComoLeido = async (id) => {
-    try {
-      await axios.patch(`${API_MENSAJES}${id}/`, { leido: true });
-      setMensajes((prev) =>
-        prev.map((m) => (m.id === id ? { ...m, leido: true } : m))
-      );
-    } catch (error) {
-      console.error("Error al marcar como leído:", error);
-      alert("❌ No se pudo marcar como leído");
-    }
-  };
-
-  // 🌟 Publicar un mensaje como reseña
-  const publicarComoResena = async (msg, publico = true) => {
-    try {
-      const nuevaResena = {
-        nombre: msg.nombre,
-        comentario: msg.mensaje,
-        calificacion: 5, // Puedes hacerlo dinámico si lo deseas
-        publico: publico, // Define si la reseña es pública o privada
-      };
-
-      console.log("📤 Enviando reseña:", nuevaResena);
-      await axios.post(API_RESENAS, nuevaResena);
-
-      alert(
-        publico
-          ? "✅ Reseña publicada como pública correctamente"
-          : "✅ Reseña publicada como privada correctamente"
-      );
-    } catch (error) {
-      console.error("Error al publicar reseña:", error);
-      if (error.response) {
-        console.error("Detalles del error:", error.response.data);
-      }
-      alert("❌ Error al publicar la reseña. Revisa la consola para más detalles.");
-    }
-  };
-
-  // ❌ Inactivar mensaje
-  const inactivarMensaje = async (id) => {
-    try {
-      await axios.patch(`${API_MENSAJES}${id}/`, { activo: false });
-      setMensajes((prev) =>
-        prev.map((m) => (m.id === id ? { ...m, activo: false } : m))
-      );
-      alert("✅ Mensaje inactivado correctamente.");
-    } catch (error) {
-      console.error("Error al inactivar mensaje:", error);
-      alert("❌ No se pudo inactivar el mensaje.");
-    }
-  };
-
   useEffect(() => {
     obtenerMensajes();
   }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => obtenerMensajes(), 300);
+    return () => clearTimeout(t);
+  }, [busqueda, filtroLeido, page]);
 
   // Filtrar mensajes según la búsqueda
   const mensajesFiltrados = mensajes.filter(

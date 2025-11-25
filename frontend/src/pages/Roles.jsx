@@ -5,11 +5,15 @@ import Modal from "../components/Modal";
 
 export default function Roles() {
   const [roles, setRoles] = useState([]);
-  const [search, setSearch] = useState(""); // Estado para la búsqueda
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
   const [open, setOpen] = useState(false);
-  const [viewModal, setViewModal] = useState(false); // Modal para consultar rol
+  const [viewModal, setViewModal] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [selectedRole, setSelectedRole] = useState(null); // Rol seleccionado para consulta
+  const [selectedRole, setSelectedRole] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const [form, setForm] = useState({
     nombre: "",
@@ -17,29 +21,58 @@ export default function Roles() {
     activo: true,
   });
 
-  const baseRoles = "/usuarios/roles/"; // Ruta del ViewSet de roles
+  const baseRoles = "/usuarios/roles/";
 
   useEffect(() => {
     fetchRoles();
   }, []);
 
-  /** ----------------------------------------
-   * 1. Obtener lista de roles
-   -----------------------------------------*/
+  useEffect(() => {
+    const t = setTimeout(() => fetchRoles(), 300);
+    return () => clearTimeout(t);
+  }, [search, page]);
+
+  /** Obtener lista de roles con paginación */
   const fetchRoles = async () => {
+    setLoading(true);
     try {
       const res = await api.get(baseRoles);
-      setRoles(res.data);
+      let allRoles = res.data || [];
+
+      // Filtrar por búsqueda
+      if (search) {
+        allRoles = allRoles.filter((r) =>
+          r.nombre.toLowerCase().includes(search.toLowerCase()) ||
+          r.descripcion?.toLowerCase().includes(search.toLowerCase())
+        );
+      }
+
+      setTotalCount(allRoles.length);
+
+      // Aplicar paginación
+      const inicio = (page - 1) * pageSize;
+      const fin = inicio + pageSize;
+      setRoles(allRoles.slice(inicio, fin));
     } catch (err) {
       console.error(err);
       alert("Error al cargar roles");
+    } finally {
+      setLoading(false);
     }
   };
 
-  /** ----------------------------------------
-   * 2. Guardar (crear o editar)
-   -----------------------------------------*/
+  /** Guardar (crear o editar) */
   const save = async () => {
+    // Validaciones
+    if (!form.nombre.trim()) {
+      alert("Por favor ingresa el nombre del rol");
+      return;
+    }
+    if (form.nombre.length < 3) {
+      alert("El nombre del rol debe tener al menos 3 caracteres");
+      return;
+    }
+
     try {
       if (editing) {
         await api.patch(`${baseRoles}${editing.id}/`, form);
@@ -50,15 +83,14 @@ export default function Roles() {
       setOpen(false);
       resetForm();
       fetchRoles();
+      alert(editing ? "Rol actualizado" : "Rol creado");
     } catch (err) {
       console.error(err);
       alert("Error al guardar rol");
     }
   };
 
-  /** ----------------------------------------
-   * 3. Cambiar estado del rol (Activo/Inactivo)
-   -----------------------------------------*/
+  /** Cambiar estado del rol */
   const toggleActive = async (r) => {
     try {
       await api.patch(`${baseRoles}${r.id}/`, { activo: !r.activo });
@@ -69,30 +101,31 @@ export default function Roles() {
     }
   };
 
-  /** ----------------------------------------
-   * 4. Consultar rol
-   -----------------------------------------*/
+  /** Consultar rol */
   const viewRole = (r) => {
     setSelectedRole(r);
     setViewModal(true);
   };
 
-  /** ----------------------------------------
-   * 5. Preparar modal para editar
-   -----------------------------------------*/
+  /** Preparar modal para editar */
   const startEdit = (r) => {
     setEditing(r);
     setForm({
       nombre: r.nombre,
-      descripcion: r.descripcion,
+      descripcion: r.descripcion || "",
       activo: r.activo,
     });
     setOpen(true);
   };
 
-  /** ----------------------------------------
-   * 6. Limpiar formulario
-   -----------------------------------------*/
+  /** Preparar modal para crear */
+  const openCreate = () => {
+    setEditing(null);
+    resetForm();
+    setOpen(true);
+  };
+
+  /** Limpiar formulario */
   const resetForm = () => {
     setEditing(null);
     setForm({ nombre: "", descripcion: "", activo: true });
