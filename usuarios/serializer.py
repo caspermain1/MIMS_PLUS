@@ -26,6 +26,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
             "rol",           # valor interno: admin, empleado, cliente
             "rol_detalle",   # label: Administrador, Empleado, Cliente
             "num_doc",
+            "active_drogueria",
         ]
         extra_kwargs = {
             "password": {"write_only": True}

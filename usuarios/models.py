@@ -17,6 +17,14 @@ class Usuario(AbstractUser):
     rol = models.CharField(max_length=20, choices=ROL_CHOICES, default='cliente')
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     actualizado = models.DateTimeField(auto_now=True)
+    # drogueria activa para el usuario (puede cambiarla en la UI)
+    active_drogueria = models.ForeignKey(
+        'droguerias.Drogueria',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='usuarios_activos'
+    )
 
     USERNAME_FIELD = 'username'
     REQUIRED_FIELDS = ['email']

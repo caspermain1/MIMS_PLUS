@@ -10,4 +10,5 @@ urlpatterns = [
     path("api/facturas/", include("facturacion.urls")),
     path("api/pedidos/", include("pedidos.urls")),
     path('api/mensajes/', include('mensajes.urls')),
+    path('api/droguerias/', include('droguerias.urls')),
 ]
