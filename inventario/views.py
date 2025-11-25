@@ -1,11 +1,13 @@
 from rest_framework import viewsets, generics, permissions
+from rest_framework.decorators import action
+from rest_framework.response import Response
 from .models import Medicamento, Categoria, MovimientoInventario, Prestamo
 from django.db.models import Q
-from .serializer import MedicamentoSerializer, CategoriaSerializer, CategoriaConMedicamentosSerializer
 from .serializer import (
     MedicamentoSerializer,
     CategoriaSerializer,
-    MovimientoInventarioSerializer
+    CategoriaConMedicamentosSerializer,
+    MovimientoInventarioSerializer,
 )
 from .serializers_prestamo import PrestamoSerializer
 from .models import Prestamo
@@ -57,7 +59,7 @@ class PrestamoViewSet(viewsets.ModelViewSet):
         if getattr(user, 'rol', None) == 'admin' or user.is_superuser:
             return Prestamo.objects.all()
         # si es solicitante mostrar los que solicitó
-        return Prestamo.objects.filter(models.Q(solicitante=user) | models.Q(origen__propietario=user) | models.Q(destino__propietario=user))
+        return Prestamo.objects.filter(Q(solicitante=user) | Q(origen__propietario=user) | Q(destino__propietario=user))
 
     def perform_create(self, serializer):
         # el serializer reserva stock durante create

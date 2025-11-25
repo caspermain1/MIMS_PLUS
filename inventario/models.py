@@ -19,7 +19,8 @@ class Categoria(models.Model):
 # 💊 MEDICAMENTO
 # =========================
 class Medicamento(models.Model):
-    nombre = models.CharField(max_length=150, unique=True)
+    # nombre ya no es único globalmente — permitimos el mismo nombre en distintas droguerías
+    nombre = models.CharField(max_length=150)
     descripcion = models.TextField(blank=True, null=True)
     categoria = models.ForeignKey(
         Categoria,
@@ -53,6 +54,12 @@ class Medicamento(models.Model):
 
     def __str__(self):
         return self.nombre
+
+    class Meta:
+        # asegurar unicidad por (nombre, drogueria) para permitir el mismo medicamento en varias sucursales
+        constraints = [
+            models.UniqueConstraint(fields=['nombre', 'drogueria'], name='unique_nombre_drogueria')
+        ]
 
     @property
     def stock_disponible(self):
