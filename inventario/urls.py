@@ -10,6 +10,8 @@ from .views import (
     MedicamentoListPublicAPIView,
     CategoriaListPublicAPIView,
     CategoriaConMedicamentosListAPIView,  # nueva vista anidada
+    MedicamentosByDrogueriaListAPIView,
+    PrestamoViewSet,
 )
 
 # =========================
@@ -19,6 +21,7 @@ router = DefaultRouter()
 router.register(r'categorias', CategoriaViewSet, basename='categoria')
 router.register(r'medicamentos-crud', MedicamentoViewSet, basename='medicamento-crud')
 router.register(r'movimientos', MovimientoInventarioViewSet, basename='movimiento-inventario')
+router.register(r'prestamos', PrestamoViewSet, basename='prestamo')
 
 # =========================
 # 🌐 URL patterns
@@ -33,6 +36,7 @@ urlpatterns = [
     path("catalogo/", MedicamentoListPublicAPIView.as_view(), name="catalogo_api"),
     path("catalogo/categorias/", CategoriaListPublicAPIView.as_view(), name="catalogo_categorias"),
     path("catalogo/categorias-con-medicamentos/", CategoriaConMedicamentosListAPIView.as_view(), name="catalogo_categorias_anidadas"),
+    path("by-drogueria/", MedicamentosByDrogueriaListAPIView.as_view(), name="medicamentos_by_drogueria"),
 
     # 🔹 Incluye las rutas automáticas del router (CRUD)
     path("", include(router.urls)),

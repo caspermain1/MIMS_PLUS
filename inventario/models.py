@@ -1,6 +1,7 @@
 from django.db import models
 from django.utils import timezone
 from usuarios.models import Usuario  # relación con usuarios
+from droguerias.models import Drogueria
 
 # =========================
 # 🧩 CATEGORÍA DE MEDICAMENTOS
@@ -26,7 +27,24 @@ class Medicamento(models.Model):
         null=True,
         related_name="medicamentos"
     )
+    # asociación con una droguería / sucursal
+    drogueria = models.ForeignKey(
+        Drogueria,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='medicamentos'
+    )
     precio_venta = models.DecimalField(max_digits=10, decimal_places=2)
+    # información de compra y lote
+    costo_compra = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    lote = models.CharField(max_length=60, blank=True, null=True)
+    fecha_ingreso = models.DateField(blank=True, null=True)
+    proveedor = models.CharField(max_length=150, blank=True, null=True)
+    codigo_barra = models.CharField(max_length=120, blank=True, null=True)
+    ubicacion = models.CharField(max_length=120, blank=True, null=True)
+    # stock reservado (por pedidos/transferencias pendientes)
+    stock_reservado = models.PositiveIntegerField(default=0)
     stock_actual = models.PositiveIntegerField(default=0)
     stock_minimo = models.PositiveIntegerField(default=10)
     fecha_vencimiento = models.DateField(null=True, blank=True)
@@ -35,6 +53,21 @@ class Medicamento(models.Model):
 
     def __str__(self):
         return self.nombre
+
+    @property
+    def stock_disponible(self):
+        """Stock disponible teniendo en cuenta el reservado."""
+        return max(self.stock_actual - self.stock_reservado, 0)
+
+    @property
+    def valor_total(self):
+        """Valor total del inventario en venta (precio_venta * stock_actual)."""
+        return self.precio_venta * self.stock_actual
+
+    @property
+    def costo_total(self):
+        """Costo total del inventario (costo_compra * stock_actual)."""
+        return self.costo_compra * self.stock_actual
 
     # =========================
     # Métodos de utilidad
@@ -63,6 +96,14 @@ class MovimientoInventario(models.Model):
         on_delete=models.CASCADE,
         related_name="movimientos"
     )
+    # Indica en qué droguería se registró el movimiento
+    drogueria = models.ForeignKey(
+        Drogueria,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='movimientos'
+    )
     tipo_movimiento = models.CharField(max_length=10, choices=TIPO_MOVIMIENTO)
     cantidad = models.PositiveIntegerField()
     fecha_movimiento = models.DateTimeField(default=timezone.now)
@@ -84,8 +125,153 @@ class MovimientoInventario(models.Model):
         """Ajusta automáticamente el stock del medicamento."""
         if not self.pk:  # solo al crear el movimiento
             if self.tipo_movimiento == "entrada":
+                # entrada incrementa stock_actual
                 self.medicamento.stock_actual += self.cantidad
+                # si es entrada desde una transferencia, podemos liberar reservados
+                if kwargs.get('transferencia_release'):
+                    self.medicamento.stock_reservado = max(self.medicamento.stock_reservado - self.cantidad, 0)
             elif self.tipo_movimiento == "salida":
+                # salida reduce stock_actual (y si se desea reservar, usar otro flujo)
                 self.medicamento.stock_actual -= self.cantidad
+                # prevenir stock negativo
+                if self.medicamento.stock_actual < 0:
+                    self.medicamento.stock_actual = 0
             self.medicamento.save()
         super().save(*args, **kwargs)
+
+
+# =========================
+# 🔁 PRÉSTAMOS / TRANSFERENCIAS ENTRE DROGUERÍAS
+# =========================
+class Prestamo(models.Model):
+    ESTADO = [
+        ('pending', 'Pendiente'),
+        ('accepted', 'Aceptado'),
+        ('rejected', 'Rechazado'),
+        ('cancelled', 'Cancelado'),
+    ]
+
+    medicamento_origen = models.ForeignKey(
+        Medicamento,
+        on_delete=models.CASCADE,
+        related_name='prestamos_origen'
+    )
+    medicamento_destino = models.ForeignKey(
+        Medicamento,
+        on_delete=models.CASCADE,
+        related_name='prestamos_destino',
+        null=True,
+        blank=True,
+        help_text='Puede apuntar a la entrada equivalente en la droguería destino (si existe)'
+    )
+    cantidad = models.PositiveIntegerField()
+    origen = models.ForeignKey(
+        Drogueria,
+        on_delete=models.CASCADE,
+        related_name='prestamos_origen'
+    )
+    destino = models.ForeignKey(
+        Drogueria,
+        on_delete=models.CASCADE,
+        related_name='prestamos_destino'
+    )
+    estado = models.CharField(max_length=20, choices=ESTADO, default='pending')
+    solicitante = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True, blank=True)
+    respondedor = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name='respuestas_prestamo')
+    fecha_solicitud = models.DateTimeField(auto_now_add=True)
+    fecha_respuesta = models.DateTimeField(null=True, blank=True)
+    nota = models.TextField(blank=True, null=True)
+
+    class Meta:
+        ordering = ['-fecha_solicitud']
+
+    def __str__(self):
+        return f"Prestamo {self.id}: {self.medicamento_origen.nombre} x{self.cantidad} {self.origen.codigo}->{self.destino.codigo} [{self.estado}]"
+
+    def clean(self):
+        # Validaciones simples: medicamento_origen debe pertenecer a la drogueria origen
+        if self.medicamento_origen.drogueria_id != self.origen_id:
+            raise ValueError('El medicamento_origen no pertenece a la droguería origen')
+
+        # si medicamento_destino existe, su drogueria debe coincidir con destino
+        if self.medicamento_destino and self.medicamento_destino.drogueria_id != self.destino_id:
+            raise ValueError('El medicamento_destino no pertenece a la droguería destino')
+
+        if self.cantidad <= 0:
+            raise ValueError('La cantidad debe ser mayor que 0')
+
+    def reservar(self):
+        """Reserva la cantidad en el medicamento de origen (aumenta stock_reservado).
+
+        Lanza ValueError si no hay stock disponible suficiente.
+        """
+        disponible = self.medicamento_origen.stock_actual - self.medicamento_origen.stock_reservado
+        if self.cantidad > disponible:
+            raise ValueError('Stock insuficiente para reservar')
+        self.medicamento_origen.stock_reservado += self.cantidad
+        self.medicamento_origen.save()
+
+    def liberar_reserva(self):
+        self.medicamento_origen.stock_reservado = max(self.medicamento_origen.stock_reservado - self.cantidad, 0)
+        self.medicamento_origen.save()
+
+    def aceptar(self, user=None):
+        """Acepta la solicitud: crea movimientos de salida/entrada y actualiza estado."""
+        if self.estado != 'pending':
+            raise ValueError('Solo solicitudes pendientes pueden aceptarse')
+
+        # Verificar existencia de medicamento_destino; si no existe, crear uno equivalente
+        if not self.medicamento_destino:
+            # buscar por nombre/categoria en la drogueria destino
+            dest, created = Medicamento.objects.get_or_create(
+                nombre=self.medicamento_origen.nombre,
+                drogueria=self.destino,
+                defaults={
+                    'descripcion': self.medicamento_origen.descripcion,
+                    'categoria': self.medicamento_origen.categoria,
+                    'precio_venta': self.medicamento_origen.precio_venta,
+                    'costo_compra': self.medicamento_origen.costo_compra,
+                    'stock_actual': 0,
+                }
+            )
+            self.medicamento_destino = dest
+            self.save()
+
+        # Crear movimiento salida en origen
+        MovimientoInventario.objects.create(
+            medicamento=self.medicamento_origen,
+            drogueria=self.origen,
+            tipo_movimiento='salida',
+            cantidad=self.cantidad,
+            usuario=user
+        )
+
+        # Crear movimiento entrada en destino
+        MovimientoInventario.objects.create(
+            medicamento=self.medicamento_destino,
+            drogueria=self.destino,
+            tipo_movimiento='entrada',
+            cantidad=self.cantidad,
+            usuario=user
+        )
+
+        # Reducir reserva y cambiar estado
+        self.liberar_reserva()
+        self.estado = 'accepted'
+        self.respondedor = user
+        from django.utils.timezone import now
+        self.fecha_respuesta = now()
+        self.save()
+
+    def rechazar(self, user=None, nota=None):
+        if self.estado != 'pending':
+            raise ValueError('Solo solicitudes pendientes pueden rechazarse')
+        # liberar reserva
+        self.liberar_reserva()
+        self.estado = 'rejected'
+        self.respondedor = user
+        self.nota = nota or self.nota
+        from django.utils.timezone import now
+        self.fecha_respuesta = now()
+        self.save()
+
