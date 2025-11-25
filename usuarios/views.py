@@ -102,7 +102,9 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             return Response({"error": "Usuario no encontrado"}, status=status.HTTP_404_NOT_FOUND)
 
         # Solo el propio usuario puede editar su perfil o admin
-        if request.user != usuario and request.user.rol != "admin":
+        # Evitar AttributeError si request.user es AnonymousUser: comprobar autenticación
+        user_is_admin = getattr(request.user, 'rol', None) == 'admin'
+        if request.user != usuario and not user_is_admin:
             return Response({"error": "No autorizado"}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = UsuarioSerializer(usuario, data=request.data, partial=True)  # partial=True permite actualizar solo algunos campos

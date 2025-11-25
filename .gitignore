@@ -29,3 +29,6 @@ pip-wheel-metadata/
 htmlcov/
 
 *.zip
+
+# Frontend dependencies (do not commit node_modules)
+frontend/node_modules/

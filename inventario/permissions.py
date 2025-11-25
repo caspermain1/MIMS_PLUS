@@ -6,8 +6,16 @@ class EsEmpleadoOPermisoAdmin(permissions.BasePermission):
     """
 
     def has_permission(self, request, view):
-        return bool(
-            request.user and (
-                request.user.is_staff or request.user.rol in ["empleado", "admin"]
-            )
-        )
+        # Protegemos el acceso contra usuarios anónimos: primero comprobamos
+        # que el usuario está autenticado y luego leemos el atributo `rol`
+        # de forma segura con getattr para evitar AttributeError.
+        if not getattr(request, "user", None):
+            return False
+
+        if not getattr(request.user, "is_authenticated", False):
+            return False
+
+        user_is_staff = getattr(request.user, "is_staff", False)
+        user_rol = getattr(request.user, "rol", None)
+
+        return bool(user_is_staff or user_rol in ["empleado", "admin"])
