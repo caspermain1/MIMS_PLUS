@@ -4,6 +4,20 @@
   padding: 20px;
 }
 
+.medicamentos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
+.medicamento-card { background: #fff; padding: 1rem; border-radius: 12px; box-shadow: 0 6px 18px rgba(20,20,50,0.06); border: 1px solid rgba(0,0,0,0.04); }
+.medicamento-card img { width: 100%; height: 160px; object-fit: contain; border-radius: 8px; }
+.medicamento-card h3 { font-weight: 700; margin-top: 0.5rem; }
+.medicamento-card .precio { font-weight: 800; color: #0f9d58; }
+.badge-danger { background: #f87171; color: white; padding: 0.2rem 0.5rem; border-radius: 999px; font-size: 12px; }
+.badge-success { background: #34d399; color: white; padding: 0.2rem 0.5rem; border-radius: 999px; font-size: 12px; }
+.badge-warning { background: #f59e0b; color: white; padding: 0.2rem 0.5rem; border-radius: 999px; font-size: 12px; }
+.badge-info { background: #60a5fa; color: white; padding: 0.2rem 0.5rem; border-radius: 999px; font-size: 12px; }
+
+.catalogo-filtros { background: rgba(255,255,255,0.85); border-radius: 10px; box-shadow: 0 6px 16px rgba(20,20,50,0.06); }
+.categoria-seccion { padding: 10px 0; }
+.pagination-controls { text-align:center; padding: 12px 0; }
+
 .card {
   border: 1px solid #ccc;
   padding: 15px;

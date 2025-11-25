@@ -22,13 +22,22 @@ class MedicamentoSerializer(serializers.ModelSerializer):
     drogueria = DrogueriaNestedSerializer(read_only=True)
     drogueria_id = serializers.PrimaryKeyRelatedField(queryset=Drogueria.objects.all(), source='drogueria', write_only=True, required=False, allow_null=True)
 
+    # exposiciones de propiedades calculadas
+    stock_disponible = serializers.IntegerField(read_only=True)
+    valor_total = serializers.SerializerMethodField(read_only=True)
+    costo_total = serializers.SerializerMethodField(read_only=True)
+    esta_vencido = serializers.BooleanField(read_only=True)
+    stock_status = serializers.SerializerMethodField(read_only=True)
+
     class Meta:
         model = Medicamento
         fields = [
             'id', 'nombre', 'descripcion', 'precio_venta', 'costo_compra',
             'stock_actual', 'stock_reservado', 'stock_minimo', 'categoria', 'categoria_id',
             'fecha_vencimiento', 'estado', 'imagen_url', 'drogueria', 'drogueria_id',
-            'lote', 'fecha_ingreso', 'proveedor', 'codigo_barra', 'ubicacion'
+            'lote', 'fecha_ingreso', 'proveedor', 'codigo_barra', 'ubicacion',
+            # calculados
+            'stock_disponible', 'valor_total', 'costo_total', 'esta_vencido', 'stock_status'
         ]
 
     def to_representation(self, instance):
@@ -42,15 +51,37 @@ class MedicamentoSerializer(serializers.ModelSerializer):
         data['fecha_vencimiento'] = instance.fecha_vencimiento.isoformat() if instance.fecha_vencimiento else None
         return data
 
+    def get_valor_total(self, instance):
+        # devolver como string consistente
+        return str(instance.valor_total or "0.00")
+
+    def get_costo_total(self, instance):
+        return str(instance.costo_total or "0.00")
+
+    def get_stock_status(self, instance):
+        # breve etiqueta legible
+        return instance.verificar_stock()
+
 
 class MovimientoInventarioSerializer(serializers.ModelSerializer):
     medicamento = MedicamentoSerializer(read_only=True)
-    medicamento_id = serializers.PrimaryKeyRelatedField(queryset=Medicamento.objects.all(), source='medicamento', write_only=True, required=True)
-    drogueria = serializers.PrimaryKeyRelatedField(queryset=Drogueria.objects.all(), source='drogueria', write_only=True, required=False, allow_null=True)
+    medicamento_id = serializers.PrimaryKeyRelatedField(
+        queryset=Medicamento.objects.all(), source='medicamento', write_only=True, required=True
+    )
+
+    # When reading a MovimientoInventario, return nested drogueria details.
+    # When writing, accept drogueria_id to associate the movement with a drogueria.
+    drogueria = DrogueriaNestedSerializer(read_only=True)
+    drogueria_id = serializers.PrimaryKeyRelatedField(
+        queryset=Drogueria.objects.all(), source='drogueria', write_only=True, required=False, allow_null=True
+    )
 
     class Meta:
         model = MovimientoInventario
-        fields = ['id', 'tipo_movimiento', 'cantidad', 'fecha_movimiento', 'medicamento', 'medicamento_id', 'drogueria']
+        fields = [
+            'id', 'tipo_movimiento', 'cantidad', 'fecha_movimiento',
+            'medicamento', 'medicamento_id', 'drogueria', 'drogueria_id'
+        ]
 
 
 class CategoriaConMedicamentosSerializer(serializers.ModelSerializer):
@@ -59,3 +90,20 @@ class CategoriaConMedicamentosSerializer(serializers.ModelSerializer):
     class Meta:
         model = Categoria
         fields = ['id', 'nombre', 'descripcion', 'activo', 'medicamentos']
+
+
+class AlertaSerializer(serializers.ModelSerializer):
+    medicamento = MedicamentoSerializer(read_only=True)
+    drogueria = DrogueriaNestedSerializer(read_only=True)
+
+    class Meta:
+        model = getattr(__import__('inventario.models', fromlist=['Alerta']), 'Alerta')
+        fields = ['id', 'tipo', 'nivel', 'mensaje', 'medicamento', 'drogueria', 'creado_en', 'leido']
+
+
+class AuditLogSerializer(serializers.ModelSerializer):
+    user = serializers.StringRelatedField(read_only=True)
+
+    class Meta:
+        model = getattr(__import__('inventario.models', fromlist=['AuditLog']), 'AuditLog')
+        fields = ['id', 'action', 'model_name', 'object_id', 'user', 'message', 'data', 'created_at']

@@ -9,6 +9,9 @@ export default function PerfilCliente() {
   const [formData, setFormData] = useState({});
   const [editMode, setEditMode] = useState(false);
   const [facturas, setFacturas] = useState([]);
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(5);
+  const [totalFacturas, setTotalFacturas] = useState(0);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -30,7 +33,13 @@ export default function PerfilCliente() {
           "http://localhost:8000/api/facturas/cliente/historial/",
           config
         );
-        setFacturas(facturasRes.data);
+        const allFacturas = Array.isArray(facturasRes.data) ? facturasRes.data : [];
+        setTotalFacturas(allFacturas.length);
+        
+        // Aplicar paginación local
+        const inicio = (page - 1) * pageSize;
+        const fin = inicio + pageSize;
+        setFacturas(allFacturas.slice(inicio, fin));
       } catch (error) {
         console.error("Error al cargar perfil:", error);
         navigate("/login");
@@ -40,7 +49,8 @@ export default function PerfilCliente() {
     };
 
     fetchData();
-  }, [navigate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigate, page]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -167,42 +177,71 @@ export default function PerfilCliente() {
         {/* Historial de compras */}
         <div>
           <h3 className="text-xl font-semibold text-green-700 mb-4 flex items-center gap-2">
-            <ShoppingBag size={22} /> Historial de Compras
+            <ShoppingBag size={22} /> Historial de Compras ({totalFacturas})
           </h3>
 
           {facturas.length === 0 ? (
             <p className="text-gray-600">No tienes facturas registradas.</p>
           ) : (
-            <div className="space-y-4">
-              {facturas.map((factura) => (
-                <div
-                  key={factura.id}
-                  className="border border-gray-200 rounded-xl p-4 bg-gray-50 hover:bg-gray-100 transition"
-                >
-                  <div className="flex justify-between text-sm text-gray-600 mb-2">
-                    <span>Factura N° {factura.id}</span>
-                    <span>{new Date(factura.fecha_emision).toLocaleString()}</span>
-                  </div>
-                  <p className="text-gray-700">
-                    <strong>Método de Pago:</strong> {factura.metodo_pago}
-                  </p>
-                  <p className="font-semibold text-green-700 mt-1">
-                    Total: ${Number(factura.total).toLocaleString("es-CO")}
-                  </p>
+            <>
+              <div className="space-y-4">
+                {facturas.map((factura) => (
+                  <div
+                    key={factura.id}
+                    className="border border-gray-200 rounded-xl p-4 bg-gray-50 hover:bg-gray-100 transition"
+                  >
+                    <div className="flex justify-between text-sm text-gray-600 mb-2">
+                      <span>Factura N° {factura.id}</span>
+                      <span>{new Date(factura.fecha_emision).toLocaleString()}</span>
+                    </div>
+                    <p className="text-gray-700">
+                      <strong>Método de Pago:</strong> {factura.metodo_pago}
+                    </p>
+                    <p className="font-semibold text-green-700 mt-1">
+                      Total: ${Number(factura.total).toLocaleString("es-CO")}
+                    </p>
 
-                  {factura.detalles?.length > 0 && (
-                    <ul className="list-disc ml-5 mt-2 text-gray-700">
-                      {factura.detalles.map((d) => (
-                        <li key={d.id}>
-                          {d.medicamento_nombre} — {d.cantidad} unds — $
-                          {Number(d.subtotal).toLocaleString("es-CO")}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                    {factura.detalles?.length > 0 && (
+                      <ul className="list-disc ml-5 mt-2 text-gray-700">
+                        {factura.detalles.map((d) => (
+                          <li key={d.id}>
+                            {d.medicamento_nombre} — {d.cantidad} unds — $
+                            {Number(d.subtotal).toLocaleString("es-CO")}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Paginación */}
+              {totalFacturas > pageSize && (
+                <div className="flex items-center justify-between mt-6 pt-4 border-t">
+                  <div className="text-sm text-slate-600">
+                    Mostrando {(page - 1) * pageSize + 1} -{" "}
+                    {Math.min(page * pageSize, totalFacturas)} de {totalFacturas} facturas
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setPage(Math.max(1, page - 1))}
+                      disabled={page === 1}
+                      className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      ← Anterior
+                    </button>
+                    <span className="px-3 py-1">Página {page}</span>
+                    <button
+                      onClick={() => setPage(page + 1)}
+                      disabled={page >= Math.ceil(totalFacturas / pageSize)}
+                      className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Siguiente →
+                    </button>
+                  </div>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>
       </div>

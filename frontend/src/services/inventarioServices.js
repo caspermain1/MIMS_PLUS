@@ -10,6 +10,21 @@ export const getCategoriasConMedicamentos = async () => {
   return res.data;
 };
 
+export const getCatalogo = async (params = {}) => {
+  const res = await API.get("/inventario/catalogo/", { params });
+  return res.data;
+};
+
+export const getProveedores = async (q = "", page = 1, page_size = 10) => {
+  const res = await API.get("/inventario/catalogo/proveedores/", { params: { q, page, page_size } });
+  return res.data;
+};
+
+export const getDrogueriasPublic = async () => {
+  const res = await API.get("/inventario/catalogo/droguerias/");
+  return res.data;
+};
+
 
 /* ===============================
    💊 MEDICAMENTOS (CRUD protegido)

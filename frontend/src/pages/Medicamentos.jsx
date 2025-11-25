@@ -9,6 +9,9 @@ export default function Medicamentos() {
   const [medicamentos, setMedicamentos] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [search, setSearch] = useState(""); // Estado para la búsqueda
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(10);
+  const [totalCount, setTotalCount] = useState(null);
   const [open, setOpen] = useState(false);
   const [viewModal, setViewModal] = useState(false); // Modal para ver detalles
   const [editing, setEditing] = useState(null);
@@ -33,10 +36,17 @@ export default function Medicamentos() {
   const fetchAll = async () => {
     try {
       const [mRes, cRes] = await Promise.all([
-        api.get(base),
+        api.get(base, { params: { page, page_size: pageSize, search } }),
         api.get(categoriasBase),
       ]);
-      setMedicamentos(mRes.data);
+      const medData = mRes.data;
+      if (medData && medData.results) {
+        setMedicamentos(medData.results);
+        setTotalCount(medData.count);
+      } else {
+        setMedicamentos(medData || []);
+        setTotalCount(null);
+      }
       setCategorias(cRes.data);
     } catch (err) {
       console.error(err);
@@ -110,6 +120,7 @@ export default function Medicamentos() {
         await api.post(base, payload);
       }
       setOpen(false);
+      // reload current page
       fetchAll();
     } catch (err) {
       console.error(err);
@@ -117,9 +128,14 @@ export default function Medicamentos() {
     }
   };
 
-  const medicamentosFiltrados = medicamentos.filter((m) =>
-    m.nombre.toLowerCase().includes(search.toLowerCase())
-  );
+  // when user types search, query backend (debounced)
+  useEffect(() => {
+    const t = setTimeout(() => fetchAll(), 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, page]);
+
+  const medicamentosFiltrados = medicamentos;
 
   return (
     <div>
@@ -202,6 +218,39 @@ export default function Medicamentos() {
             ))}
           </tbody>
         </table>
+
+        {/* Pagination controls */}
+        <div className="flex items-center justify-between mt-4 pt-4 border-t">
+          <div className="text-sm text-slate-600">
+            {totalCount ? (
+              <>
+                Mostrando {(page - 1) * pageSize + 1} -{" "}
+                {Math.min(page * pageSize, totalCount)} de {totalCount} medicamentos
+              </>
+            ) : (
+              `Página ${page}`
+            )}
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPage(Math.max(1, page - 1))}
+              disabled={page === 1}
+              className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              ← Anterior
+            </button>
+            <span className="px-3 py-1">Página {page}</span>
+            <button
+              onClick={() =>
+                setPage(page + 1)
+              }
+              disabled={totalCount ? page * pageSize >= totalCount : false}
+              className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Siguiente →
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Modal para ver detalles */}

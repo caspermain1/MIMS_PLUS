@@ -18,6 +18,17 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validación básica
+    if (!formData.username.trim()) {
+      setError("Por favor ingresa tu usuario");
+      return;
+    }
+    if (!formData.password.trim()) {
+      setError("Por favor ingresa tu contraseña");
+      return;
+    }
+    
     setLoading(true);
     try {
       const data = await loginUsuario(formData); // ✅ usa tu función centralizada
@@ -34,8 +45,10 @@ export default function Login() {
       console.error("Error login:", err);
       if (err.message.includes("Credenciales inválidas")) {
         setError("Usuario o contraseña incorrectos");
+      } else if (err.message.includes("Usuario no encontrado")) {
+        setError("Este usuario no existe");
       } else {
-        setError("Error al conectar con el servidor");
+        setError("Error al conectar con el servidor. Intenta más tarde.");
       }
     } finally {
       setLoading(false);

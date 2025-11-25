@@ -8,10 +8,19 @@ export default function Home({ carrito, setCarrito, carritoOpen, setCarritoOpen 
   const [productos, setProductos] = useState([]);
   const [categorias, setCategorias] = useState([]);
 
+  // filtros avanzados (servidor)
+  const [precioMin, setPrecioMin] = useState("");
+  const [precioMax, setPrecioMax] = useState("");
+  const [disponibleOnly, setDisponibleOnly] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(10);
+  const [totalCount, setTotalCount] = useState(null);
+  const [loading, setLoading] = useState(false);
+
   // Filtros
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState(null);
   const [busqueda, setBusqueda] = useState("");
-  const [precioFiltro, setPrecioFiltro] = useState(""); // Filtro: "caros" o "baratos"
+  // (precioFiltro ya no se usa; usamos precioMin/precioMax en el servidor)
 
   const token = localStorage.getItem("token");
   const API_PEDIDOS = "http://127.0.0.1:8000/api/pedidos/crud/";
@@ -20,16 +29,21 @@ export default function Home({ carrito, setCarrito, carritoOpen, setCarritoOpen 
   // Cargar productos y categorías
   // ==========================
   useEffect(() => {
-    axios
-      .get("http://localhost:8000/api/inventario/catalogo/")
-      .then((res) => setProductos(res.data))
-      .catch((err) => console.error("Error al cargar medicamentos:", err));
+    // cargar datos iniciales
+    fetchProductos();
 
-    axios
-      .get("http://localhost:8000/api/inventario/categorias/")
-      .then((res) => setCategorias(res.data))
-      .catch((err) => console.error("Error al cargar categorías:", err));
+     axios.get("http://localhost:8000/api/inventario/categorias/")
+       .then((res) => setCategorias(res.data))
+       .catch((err) => console.error("Error al cargar categorías:", err));
   }, []);
+
+  // reconstruir y llamar API cuando cambian filtros relevantes
+  useEffect(() => {
+    // debounce para no bombardear la API al tipear
+    const t = setTimeout(() => fetchProductos(), 250);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoriaSeleccionada, busqueda, precioMin, precioMax, disponibleOnly, page]);
 
   // ==========================
   // Funciones de carrito con login requerido
@@ -40,8 +54,19 @@ export default function Home({ carrito, setCarrito, carritoOpen, setCarritoOpen 
       return;
     }
 
+    // Validar disponibilidad
+    if (!producto.stock_disponible || producto.stock_disponible <= 0) {
+      alert(`${producto.nombre} no está disponible en este momento.`);
+      return;
+    }
+
     const existe = carrito.find((p) => p.id === producto.id);
     if (existe) {
+      // Validar no exceda stock
+      if (existe.cantidad >= producto.stock_disponible) {
+        alert(`No hay más stock de ${producto.nombre} disponible.`);
+        return;
+      }
       setCarrito(
         carrito.map((p) =>
           p.id === producto.id ? { ...p, cantidad: p.cantidad + 1 } : p
@@ -101,20 +126,38 @@ export default function Home({ carrito, setCarrito, carritoOpen, setCarritoOpen 
   };
 
   // ==========================
-  // Filtrado de productos
+  // Fetch productos desde API con filtros
   // ==========================
-  const productosFiltrados = productos
-    .filter((p) =>
-      categoriaSeleccionada ? p.categoria === categoriaSeleccionada : true
-    )
-    .filter((p) =>
-      busqueda ? p.nombre.toLowerCase().includes(busqueda.toLowerCase()) : true
-    )
-    .filter((p) => {
-      if (precioFiltro === "caros") return p.precio_venta > 50000; // Ejemplo: medicamentos caros > 50,000
-      if (precioFiltro === "baratos") return p.precio_venta <= 50000; // Ejemplo: medicamentos baratos <= 50,000
-      return true; // Sin filtro
-    });
+  const fetchProductos = async () => {
+    setLoading(true);
+    try {
+      const params = { page, page_size: pageSize };
+      if (categoriaSeleccionada) params.categoria = categoriaSeleccionada;
+      if (busqueda) params.q = busqueda;
+      if (precioMin) params.precio_min = precioMin;
+      if (precioMax) params.precio_max = precioMax;
+      if (disponibleOnly) params.disponible = true;
+
+      const res = await axios.get("http://localhost:8000/api/inventario/catalogo/", { params });
+      // es paginado — respetar estructura
+      if (res.data && res.data.results) {
+        setProductos(res.data.results);
+        setTotalCount(res.data.count);
+      } else {
+        setProductos(res.data || []);
+        setTotalCount(null);
+      }
+    } catch (err) {
+      console.error("Error al cargar medicamentos:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // resetear página cuando cambian los filtros (excepto page)
+  useEffect(() => {
+    setPage(1);
+  }, [categoriaSeleccionada, busqueda, precioMin, precioMax, disponibleOnly]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex flex-col">
@@ -174,15 +217,30 @@ export default function Home({ carrito, setCarrito, carritoOpen, setCarritoOpen 
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
         />
-        <select
-          className="border rounded-lg p-2 w-40"
-          value={precioFiltro}
-          onChange={(e) => setPrecioFiltro(e.target.value)}
-        >
-          <option value="">Todos</option>
-          <option value="caros">Caros</option>
-          <option value="baratos">Baratos</option>
-        </select>
+        <div className="flex gap-2 items-center">
+          <input
+            type="number"
+            placeholder="Precio min"
+            className="border rounded-lg p-2 w-28"
+            value={precioMin}
+            onChange={(e) => setPrecioMin(e.target.value)}
+          />
+          <input
+            type="number"
+            placeholder="Precio max"
+            className="border rounded-lg p-2 w-28"
+            value={precioMax}
+            onChange={(e) => setPrecioMax(e.target.value)}
+          />
+          <label className="flex items-center gap-2 ml-2">
+            <input
+              type="checkbox"
+              checked={disponibleOnly}
+              onChange={(e) => setDisponibleOnly(e.target.checked)}
+            />
+            <span className="text-sm">Sólo disponibles</span>
+          </label>
+        </div>
       </div>
 
       {/* Catálogo */}
@@ -192,8 +250,10 @@ export default function Home({ carrito, setCarrito, carritoOpen, setCarritoOpen 
         animate={{ opacity: 1 }}
         transition={{ delay: 0.5, duration: 1 }}
       >
-        {productosFiltrados.length > 0 ? (
-          productosFiltrados.map((p) => (
+        {loading ? (
+          <p className="col-span-3 text-center">Cargando...</p>
+        ) : productos.length > 0 ? (
+          productos.map((p) => (
             <motion.div
               key={p.id}
               whileHover={{ scale: 1.05 }}
@@ -218,9 +278,28 @@ export default function Home({ carrito, setCarrito, carritoOpen, setCarritoOpen 
             </motion.div>
           ))
         ) : (
-          <p className="text-gray-600 text-lg col-span-3">
-            No hay medicamentos para mostrar...
-          </p>
+          <p className="text-gray-600 text-lg col-span-3">No hay medicamentos para mostrar...</p>
+        )}
+
+        {/* Paginación simple */}
+        {totalCount !== null && (
+          <div className="col-span-full flex items-center justify-center gap-4 mt-4">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="px-3 py-1 border rounded disabled:opacity-50"
+            >
+              Anterior
+            </button>
+            <span>Página {page} — {Math.ceil(totalCount / pageSize)} </span>
+            <button
+              onClick={() => setPage((p) => p + 1)}
+              disabled={page >= Math.ceil(totalCount / pageSize)}
+              className="px-3 py-1 border rounded disabled:opacity-50"
+            >
+              Siguiente
+            </button>
+          </div>
         )}
       </motion.div>
 

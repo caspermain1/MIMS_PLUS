@@ -59,3 +59,20 @@ class PrestamoAdmin(admin.ModelAdmin):
     list_filter = ('estado', 'origen', 'destino')
     search_fields = ('medicamento_origen__nombre', 'medicamento_destino__nombre', 'origen__codigo', 'destino__codigo')
     readonly_fields = ('fecha_solicitud', 'fecha_respuesta')
+
+
+from .models import Alerta, AuditLog
+
+
+@admin.register(Alerta)
+class AlertaAdmin(admin.ModelAdmin):
+    list_display = ('id', 'tipo', 'nivel', 'mensaje', 'medicamento', 'drogueria', 'creado_en', 'leido')
+    list_filter = ('tipo', 'nivel', 'leido')
+    search_fields = ('mensaje', 'medicamento__nombre')
+
+
+@admin.register(AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    list_display = ('id', 'action', 'model_name', 'object_id', 'user', 'created_at')
+    list_filter = ('action', 'model_name', 'user')
+    search_fields = ('message',)

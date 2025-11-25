@@ -60,6 +60,10 @@ class Medicamento(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['nombre', 'drogueria'], name='unique_nombre_drogueria')
         ]
+        indexes = [
+            models.Index(fields=['drogueria', 'categoria', 'nombre'], name='med_drog_cat_nom_idx'),
+            models.Index(fields=['stock_actual'], name='med_stock_idx'),
+        ]
 
     @property
     def stock_disponible(self):
@@ -146,6 +150,63 @@ class MovimientoInventario(models.Model):
             self.medicamento.save()
         super().save(*args, **kwargs)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['medicamento', 'drogueria', 'fecha_movimiento'], name='mov_med_drog_fecha_idx'),
+        ]
+
+
+class Alerta(models.Model):
+    TIPOS = [
+        ('low_stock', 'Stock bajo'),
+        ('vencido', 'Vencido'),
+        ('prestamo', 'Prestamo'),
+        ('info', 'Información'),
+    ]
+
+    nivel_choices = [
+        ('info', 'Info'),
+        ('warning', 'Warning'),
+        ('danger', 'Danger')
+    ]
+
+    tipo = models.CharField(max_length=30, choices=TIPOS)
+    nivel = models.CharField(max_length=10, choices=nivel_choices, default='warning')
+    mensaje = models.TextField()
+    medicamento = models.ForeignKey(Medicamento, on_delete=models.SET_NULL, null=True, blank=True, related_name='alertas')
+    drogueria = models.ForeignKey(Drogueria, on_delete=models.SET_NULL, null=True, blank=True, related_name='alertas')
+    creado_en = models.DateTimeField(auto_now_add=True)
+    leido = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-creado_en']
+        indexes = [
+            models.Index(fields=['medicamento', 'drogueria', 'tipo', 'creado_en'], name='alert_med_drog_tipo_idx'),
+        ]
+
+    def __str__(self):
+        return f"Alerta({self.tipo}) - {self.mensaje[:40]}"
+
+
+class AuditLog(models.Model):
+    """Registro de auditoría de acciones críticas en inventario y préstamos."""
+    action = models.CharField(max_length=80)
+    model_name = models.CharField(max_length=80, blank=True, null=True)
+    object_id = models.IntegerField(blank=True, null=True)
+    user = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True, blank=True)
+    message = models.TextField(blank=True, null=True)
+    data = models.JSONField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['model_name', 'object_id', 'created_at'], name='audit_model_obj_idx'),
+        ]
+
+    def __str__(self):
+        return f"Audit: {self.action} on {self.model_name}#{self.object_id} by {self.user} at {self.created_at}"
+
 
 # =========================
 # 🔁 PRÉSTAMOS / TRANSFERENCIAS ENTRE DROGUERÍAS
@@ -191,6 +252,9 @@ class Prestamo(models.Model):
 
     class Meta:
         ordering = ['-fecha_solicitud']
+        indexes = [
+            models.Index(fields=['origen', 'destino', 'estado', 'fecha_solicitud'], name='prest_origen_dest_estado_idx'),
+        ]
 
     def __str__(self):
         return f"Prestamo {self.id}: {self.medicamento_origen.nombre} x{self.cantidad} {self.origen.codigo}->{self.destino.codigo} [{self.estado}]"
@@ -227,10 +291,14 @@ class Prestamo(models.Model):
         if self.estado != 'pending':
             raise ValueError('Solo solicitudes pendientes pueden aceptarse')
 
-        # Verificar existencia de medicamento_destino; si no existe, crear uno equivalente
-        if not self.medicamento_destino:
-            # buscar por nombre/categoria en la drogueria destino
-            dest, created = Medicamento.objects.get_or_create(
+        from django.db import transaction
+
+        # Ejecutar todo en una transacción para evitar inconsistencias
+        with transaction.atomic():
+            # Verificar existencia de medicamento_destino; si no existe, crear uno equivalente
+            if not self.medicamento_destino:
+                # buscar por nombre/categoria en la drogueria destino
+                dest, created = Medicamento.objects.get_or_create(
                 nombre=self.medicamento_origen.nombre,
                 drogueria=self.destino,
                 defaults={
@@ -240,35 +308,40 @@ class Prestamo(models.Model):
                     'costo_compra': self.medicamento_origen.costo_compra,
                     'stock_actual': 0,
                 }
+                )
+                self.medicamento_destino = dest
+                self.save()
+
+            # lock the medications to prevent concurrent modifications
+            origen_med = Medicamento.objects.select_for_update().get(pk=self.medicamento_origen.pk)
+            dest_med = Medicamento.objects.select_for_update().get(pk=self.medicamento_destino.pk)
+
+            # Crear movimiento salida en origen (ajusta stock_actual en 'origen_med')
+            MovimientoInventario.objects.create(
+                medicamento=origen_med,
+                drogueria=self.origen,
+                tipo_movimiento='salida',
+                cantidad=self.cantidad,
+                usuario=user
             )
-            self.medicamento_destino = dest
+
+            # Crear movimiento entrada en destino (ajusta stock_actual en 'dest_med')
+            MovimientoInventario.objects.create(
+                medicamento=dest_med,
+                drogueria=self.destino,
+                tipo_movimiento='entrada',
+                cantidad=self.cantidad,
+                usuario=user
+            )
+
+            # Reducir la reserva en la instancia bloqueada para no sobrescribir cambios
+            origen_med.stock_reservado = max(origen_med.stock_reservado - self.cantidad, 0)
+            origen_med.save()
+            self.estado = 'accepted'
+            self.respondedor = user
+            from django.utils.timezone import now
+            self.fecha_respuesta = now()
             self.save()
-
-        # Crear movimiento salida en origen
-        MovimientoInventario.objects.create(
-            medicamento=self.medicamento_origen,
-            drogueria=self.origen,
-            tipo_movimiento='salida',
-            cantidad=self.cantidad,
-            usuario=user
-        )
-
-        # Crear movimiento entrada en destino
-        MovimientoInventario.objects.create(
-            medicamento=self.medicamento_destino,
-            drogueria=self.destino,
-            tipo_movimiento='entrada',
-            cantidad=self.cantidad,
-            usuario=user
-        )
-
-        # Reducir reserva y cambiar estado
-        self.liberar_reserva()
-        self.estado = 'accepted'
-        self.respondedor = user
-        from django.utils.timezone import now
-        self.fecha_respuesta = now()
-        self.save()
 
     def rechazar(self, user=None, nota=None):
         if self.estado != 'pending':
