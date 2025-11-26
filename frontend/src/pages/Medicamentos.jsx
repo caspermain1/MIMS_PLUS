@@ -1,5 +1,7 @@
 // src/pages/Medicamentos.jsx
 import React, { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import { Plus, Edit2, Eye, Trash2, RefreshCw, AlertCircle } from "lucide-react";
 import api from "../services/api";
 import Modal from "../components/Modal";
 
@@ -8,14 +10,18 @@ export default function Medicamentos() {
   const categoriasBase = "/inventario/categorias/";
   const [medicamentos, setMedicamentos] = useState([]);
   const [categorias, setCategorias] = useState([]);
-  const [search, setSearch] = useState(""); // Estado para la búsqueda
+  const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize] = useState(10);
   const [totalCount, setTotalCount] = useState(null);
   const [open, setOpen] = useState(false);
-  const [viewModal, setViewModal] = useState(false); // Modal para ver detalles
+  const [viewModal, setViewModal] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [selectedMedicamento, setSelectedMedicamento] = useState(null); // Medicamento seleccionado para ver
+  const [selectedMedicamento, setSelectedMedicamento] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [mensaje, setMensaje] = useState("");
+  const [tipoMensaje, setTipoMensaje] = useState("");
+  const [erroresForm, setErroresForm] = useState({});
 
   const [form, setForm] = useState({
     nombre: "",
@@ -34,6 +40,7 @@ export default function Medicamentos() {
   }, []);
 
   const fetchAll = async () => {
+    setLoading(true);
     try {
       const [mRes, cRes] = await Promise.all([
         api.get(base, { params: { page, page_size: pageSize, search } }),
@@ -50,8 +57,31 @@ export default function Medicamentos() {
       setCategorias(cRes.data);
     } catch (err) {
       console.error(err);
-      alert("Error cargando inventario");
+      mostrarMensaje("❌ Error cargando inventario", "error");
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const mostrarMensaje = (msg, tipo = "success") => {
+    setMensaje(msg);
+    setTipoMensaje(tipo);
+    setTimeout(() => setMensaje(""), 3000);
+  };
+
+  const validarForm = () => {
+    const errores = {};
+    if (!form.nombre || form.nombre.trim().length < 3) {
+      errores.nombre = "El nombre debe tener al menos 3 caracteres";
+    }
+    if (!form.precio_venta || parseFloat(form.precio_venta) <= 0) {
+      errores.precio_venta = "El precio debe ser mayor a 0";
+    }
+    if (!form.stock_actual || parseInt(form.stock_actual) < 0) {
+      errores.stock_actual = "El stock no puede ser negativo";
+    }
+    setErroresForm(errores);
+    return Object.keys(errores).length === 0;
   };
 
   const openCreate = () => {
@@ -67,6 +97,7 @@ export default function Medicamentos() {
       imagen_url: "",
       categoria_id: null,
     });
+    setErroresForm({});
     setOpen(true);
   };
 
@@ -83,6 +114,7 @@ export default function Medicamentos() {
       imagen_url: m.imagen_url || "",
       categoria_id: m.categoria?.id || null,
     });
+    setErroresForm({});
     setOpen(true);
   };
 
@@ -94,14 +126,33 @@ export default function Medicamentos() {
   const toggleActive = async (m) => {
     try {
       await api.patch(`${base}${m.id}/`, { estado: !m.estado });
+      mostrarMensaje(`✅ Medicamento ${m.estado ? "desactivado" : "activado"}`, "success");
       fetchAll();
     } catch (err) {
       console.error(err);
-      alert("Error cambiando estado del medicamento");
+      mostrarMensaje("❌ Error cambiando estado", "error");
+    }
+  };
+
+  const eliminar = async (id) => {
+    if (window.confirm("¿Estás seguro de que quieres eliminar este medicamento?")) {
+      try {
+        await api.delete(`${base}${id}/`);
+        mostrarMensaje("✅ Medicamento eliminado", "success");
+        fetchAll();
+      } catch (err) {
+        console.error(err);
+        mostrarMensaje("❌ Error eliminando medicamento", "error");
+      }
     }
   };
 
   const save = async () => {
+    if (!validarForm()) {
+      mostrarMensaje("❌ Por favor completa los campos correctamente", "error");
+      return;
+    }
+
     try {
       const payload = {
         nombre: form.nombre,
@@ -116,292 +167,368 @@ export default function Medicamentos() {
       };
       if (editing) {
         await api.put(`${base}${editing.id}/`, payload);
+        mostrarMensaje("✅ Medicamento actualizado", "success");
       } else {
         await api.post(base, payload);
+        mostrarMensaje("✅ Medicamento creado", "success");
       }
       setOpen(false);
-      // reload current page
       fetchAll();
     } catch (err) {
       console.error(err);
-      alert("Error guardando medicamento");
+      mostrarMensaje("❌ Error guardando medicamento", "error");
     }
   };
 
-  // when user types search, query backend (debounced)
   useEffect(() => {
     const t = setTimeout(() => fetchAll(), 300);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, page]);
 
-  const medicamentosFiltrados = medicamentos;
-
   return (
-    <div>
-      <header className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">Gestión de Medicamentos</h2>
-        <div className="flex gap-3">
+    <div className="p-6">
+      <motion.h2
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="text-3xl font-bold mb-6 text-slate-800"
+      >
+        Gestión de Medicamentos
+      </motion.h2>
+
+      {mensaje && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`p-4 rounded-lg mb-4 ${tipoMensaje === "success" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
+        >
+          {mensaje}
+        </motion.div>
+      )}
+
+      {/* Toolbar */}
+      <div className="mb-6 space-y-4">
+        <div className="flex gap-3 flex-wrap">
           <button
             onClick={openCreate}
-            className="px-4 py-2 bg-green-600 text-white rounded"
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold flex items-center gap-2"
           >
-            + Nuevo
+            <Plus size={20} /> Nuevo Medicamento
           </button>
           <button
             onClick={fetchAll}
-            className="px-4 py-2 bg-slate-100 rounded"
+            disabled={loading}
+            className="px-6 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 font-semibold flex items-center gap-2 disabled:opacity-50"
           >
+            <RefreshCw size={20} className={loading ? "animate-spin" : ""} />
             Refrescar
           </button>
         </div>
-      </header>
 
-      {/* Campo de búsqueda */}
-      <div className="mb-4">
         <input
           type="text"
-          placeholder="Buscar por nombre de medicamento"
+          placeholder="🔍 Buscar por nombre de medicamento..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full px-4 py-2 border rounded-lg"
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+          className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
 
       {/* Tabla */}
-      <div className="bg-white rounded-lg p-4 shadow">
-        <table className="w-full">
-          <thead>
-            <tr className="text-left text-slate-600">
-              <th className="py-2">ID</th>
-              <th>Nombre</th>
-              <th>Precio</th>
-              <th>Stock</th>
-              <th>Categoría</th>
-              <th>Estado</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {medicamentosFiltrados.map((m) => (
-              <tr key={m.id} className="border-t">
-                <td className="py-2">{m.id}</td>
-                <td>{m.nombre}</td>
-                <td>${m.precio_venta}</td>
-                <td>{m.stock_actual}</td>
-                <td>{m.categoria?.nombre || "N/A"}</td>
-                <td>
-                  <button
-                    onClick={() => toggleActive(m)}
-                    className={`px-3 py-1 rounded ${
-                      m.estado ? "bg-green-500 text-white" : "bg-red-500 text-white"
-                    }`}
-                  >
-                    {m.estado ? "🟢 Activo" : "🔴 Inactivo"}
-                  </button>
-                </td>
-                <td className="flex gap-2 py-2">
-                  <button
-                    onClick={() => openEdit(m)}
-                    className="px-3 py-1 bg-blue-600 text-white rounded flex items-center gap-1"
-                  >
-                    ✏️ Editar
-                  </button>
-                  <button
-                    onClick={() => viewDetails(m)}
-                    className="px-3 py-1 bg-yellow-500 text-white rounded flex items-center gap-1"
-                  >
-                    👁️ Ver
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {loading ? (
+        <div className="text-center py-8 text-gray-600">Cargando medicamentos...</div>
+      ) : (
+        <>
+          <div className="bg-white rounded-lg shadow-md overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-slate-100">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold">ID</th>
+                    <th className="px-4 py-3 text-left font-semibold">Nombre</th>
+                    <th className="px-4 py-3 text-right font-semibold">Precio</th>
+                    <th className="px-4 py-3 text-center font-semibold">Stock</th>
+                    <th className="px-4 py-3 text-left font-semibold">Categoría</th>
+                    <th className="px-4 py-3 text-center font-semibold">Estado</th>
+                    <th className="px-4 py-3 text-center font-semibold">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {medicamentos.length > 0 ? (
+                    medicamentos.map((m) => {
+                      const stockBajo = m.stock_actual <= m.stock_minimo;
+                      const vencido = m.fecha_vencimiento && new Date(m.fecha_vencimiento) < new Date();
+                      return (
+                        <tr key={m.id} className="border-b hover:bg-slate-50 transition">
+                          <td className="px-4 py-3 font-mono text-sm">{m.id}</td>
+                          <td className="px-4 py-3 font-semibold">{m.nombre}</td>
+                          <td className="px-4 py-3 text-right font-semibold text-green-600">${m.precio_venta}</td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                              stockBajo ? "bg-red-100 text-red-700" :
+                              m.stock_actual > 50 ? "bg-green-100 text-green-700" :
+                              "bg-yellow-100 text-yellow-700"
+                            }`}>
+                              {m.stock_actual}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">{m.categoria?.nombre || "N/A"}</td>
+                          <td className="px-4 py-3 text-center">
+                            <button
+                              onClick={() => toggleActive(m)}
+                              className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                m.estado
+                                  ? "bg-green-100 text-green-700 hover:bg-green-200"
+                                  : "bg-red-100 text-red-700 hover:bg-red-200"
+                              }`}
+                            >
+                              {m.estado ? "🟢 Activo" : "🔴 Inactivo"}
+                            </button>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex justify-center gap-2">
+                              <button
+                                onClick={() => openEdit(m)}
+                                className="p-2 bg-blue-100 text-blue-600 rounded hover:bg-blue-200"
+                                title="Editar"
+                              >
+                                <Edit2 size={18} />
+                              </button>
+                              <button
+                                onClick={() => viewDetails(m)}
+                                className="p-2 bg-yellow-100 text-yellow-600 rounded hover:bg-yellow-200"
+                                title="Ver detalles"
+                              >
+                                <Eye size={18} />
+                              </button>
+                              <button
+                                onClick={() => eliminar(m.id)}
+                                className="p-2 bg-red-100 text-red-600 rounded hover:bg-red-200"
+                                title="Eliminar"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan="7" className="px-4 py-8 text-center text-gray-600">
+                        No hay medicamentos que coincidan con tu búsqueda
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
 
-        {/* Pagination controls */}
-        <div className="flex items-center justify-between mt-4 pt-4 border-t">
-          <div className="text-sm text-slate-600">
-            {totalCount ? (
-              <>
-                Mostrando {(page - 1) * pageSize + 1} -{" "}
-                {Math.min(page * pageSize, totalCount)} de {totalCount} medicamentos
-              </>
-            ) : (
-              `Página ${page}`
+            {/* Paginación */}
+            {totalCount !== null && Math.ceil(totalCount / pageSize) > 1 && (
+              <div className="flex items-center justify-between p-4 border-t bg-slate-50">
+                <div className="text-sm text-slate-600">
+                  Mostrando {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, totalCount)} de {totalCount}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setPage(Math.max(1, page - 1))}
+                    disabled={page === 1}
+                    className="px-4 py-2 border rounded-lg disabled:opacity-50 hover:bg-gray-100"
+                  >
+                    ← Anterior
+                  </button>
+                  <span className="px-4 py-2 font-semibold">Página {page}</span>
+                  <button
+                    onClick={() => setPage(page + 1)}
+                    disabled={page * pageSize >= totalCount}
+                    className="px-4 py-2 border rounded-lg disabled:opacity-50 hover:bg-gray-100"
+                  >
+                    Siguiente →
+                  </button>
+                </div>
+              </div>
             )}
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setPage(Math.max(1, page - 1))}
-              disabled={page === 1}
-              className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              ← Anterior
-            </button>
-            <span className="px-3 py-1">Página {page}</span>
-            <button
-              onClick={() =>
-                setPage(page + 1)
-              }
-              disabled={totalCount ? page * pageSize >= totalCount : false}
-              className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Siguiente →
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Modal para ver detalles */}
-      {viewModal && selectedMedicamento && (
-        <Modal
-          open={viewModal}
-          title={`Detalles del medicamento: ${selectedMedicamento.nombre}`}
-          onClose={() => setViewModal(false)}
-          footer={null}
-        >
-          <div className="space-y-3">
-            <p>
-              <strong>Descripción:</strong> {selectedMedicamento.descripcion}
-            </p>
-            <p>
-              <strong>Precio:</strong> ${selectedMedicamento.precio_venta}
-            </p>
-            <p>
-              <strong>Stock actual:</strong> {selectedMedicamento.stock_actual}
-            </p>
-            <p>
-              <strong>Stock mínimo:</strong> {selectedMedicamento.stock_minimo}
-            </p>
-            <p>
-              <strong>Fecha de vencimiento:</strong>{" "}
-              {selectedMedicamento.fecha_vencimiento || "N/A"}
-            </p>
-            <p>
-              <strong>Categoría:</strong>{" "}
-              {selectedMedicamento.categoria?.nombre || "N/A"}
-            </p>
-            <p>
-              <strong>Estado:</strong>{" "}
-              {selectedMedicamento.estado ? "Activo" : "Inactivo"}
-            </p>
-          </div>
-        </Modal>
+        </>
       )}
 
-      {/* Modal para crear/editar medicamento */}
-      <Modal
-        open={open}
-        title={editing ? "Editar medicamento" : "Nuevo medicamento"}
-        onClose={() => setOpen(false)}
-        footer={
-          <>
-            <button
-              onClick={() => setOpen(false)}
-              className="px-4 py-2 rounded bg-gray-100"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={save}
-              className="px-4 py-2 rounded bg-blue-600 text-white"
-            >
-              Guardar
-            </button>
-          </>
-        }
-      >
-        <div className="space-y-3">
-          <input
-            value={form.nombre}
-            onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-            placeholder="Nombre"
-            className="w-full px-3 py-2 border rounded"
-          />
-          <textarea
-            value={form.descripcion}
-            onChange={(e) =>
-              setForm({ ...form, descripcion: e.target.value })
-            }
-            placeholder="Descripción"
-            className="w-full px-3 py-2 border rounded"
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <input
-              value={form.precio_venta}
-              onChange={(e) =>
-                setForm({ ...form, precio_venta: e.target.value })
-              }
-              placeholder="Precio"
-              type="number"
-              className="px-3 py-2 border rounded"
-            />
-            <input
-              value={form.stock_actual}
-              onChange={(e) =>
-                setForm({ ...form, stock_actual: e.target.value })
-              }
-              placeholder="Stock actual"
-              type="number"
-              className="px-3 py-2 border rounded"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <input
-              value={form.stock_minimo}
-              onChange={(e) =>
-                setForm({ ...form, stock_minimo: e.target.value })
-              }
-              placeholder="Stock mínimo"
-              type="number"
-              className="px-3 py-2 border rounded"
-            />
-            <input
-              value={form.fecha_vencimiento}
-              onChange={(e) =>
-                setForm({ ...form, fecha_vencimiento: e.target.value })
-              }
-              placeholder="Fecha vencimiento (YYYY-MM-DD)"
-              className="px-3 py-2 border rounded"
-            />
-          </div>
-
-          <select
-            value={form.categoria_id || ""}
-            onChange={(e) =>
-              setForm({ ...form, categoria_id: e.target.value || null })
-            }
-            className="w-full px-3 py-2 border rounded"
+      {/* Modal de detalles */}
+      {viewModal && selectedMedicamento && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          onClick={() => setViewModal(false)}
+        >
+          <motion.div
+            initial={{ scale: 0.9 }}
+            animate={{ scale: 1 }}
+            className="bg-white rounded-lg p-6 max-w-md w-full mx-4 max-h-96 overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
           >
-            <option value="">-- Seleccionar categoría --</option>
-            {categorias.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nombre}
-              </option>
-            ))}
-          </select>
+            <h3 className="text-xl font-bold mb-4">Detalles del Medicamento</h3>
+            <div className="space-y-3 text-sm">
+              <p><strong>Nombre:</strong> {selectedMedicamento.nombre}</p>
+              <p><strong>Descripción:</strong> {selectedMedicamento.descripcion || "N/A"}</p>
+              <p><strong>Precio:</strong> ${selectedMedicamento.precio_venta}</p>
+              <p><strong>Stock Actual:</strong> {selectedMedicamento.stock_actual}</p>
+              <p><strong>Stock Mínimo:</strong> {selectedMedicamento.stock_minimo}</p>
+              <p><strong>Fecha Vencimiento:</strong> {selectedMedicamento.fecha_vencimiento || "N/A"}</p>
+              <p><strong>Categoría:</strong> {selectedMedicamento.categoria?.nombre || "N/A"}</p>
+              <p><strong>Estado:</strong> {selectedMedicamento.estado ? "Activo" : "Inactivo"}</p>
+            </div>
+            <button
+              onClick={() => setViewModal(false)}
+              className="w-full mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Cerrar
+            </button>
+          </motion.div>
+        </motion.div>
+      )}
 
-          <input
-            value={form.imagen_url}
-            onChange={(e) =>
-              setForm({ ...form, imagen_url: e.target.value })
-            }
-            placeholder="URL imagen (opcional)"
-            className="w-full px-3 py-2 border rounded"
-          />
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={form.estado}
-              onChange={(e) =>
-                setForm({ ...form, estado: e.target.checked })
-              }
-            />
-            Activo
-          </label>
-        </div>
-      </Modal>
+      {/* Modal de crear/editar */}
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          onClick={() => setOpen(false)}
+        >
+          <motion.div
+            initial={{ scale: 0.9 }}
+            animate={{ scale: 1 }}
+            className="bg-white rounded-lg p-6 max-w-md w-full mx-4 max-h-96 overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-xl font-bold mb-4">
+              {editing ? "Editar Medicamento" : "Nuevo Medicamento"}
+            </h3>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-semibold mb-1">Nombre</label>
+                <input
+                  value={form.nombre}
+                  onChange={(e) => {
+                    setForm({ ...form, nombre: e.target.value });
+                    if (erroresForm.nombre) setErroresForm({ ...erroresForm, nombre: "" });
+                  }}
+                  placeholder="Nombre del medicamento"
+                  className={`w-full px-3 py-2 border rounded-lg text-sm ${erroresForm.nombre ? "border-red-500 bg-red-50" : ""}`}
+                />
+                {erroresForm.nombre && <p className="text-red-600 text-xs mt-1">{erroresForm.nombre}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-1">Descripción</label>
+                <textarea
+                  value={form.descripcion}
+                  onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
+                  placeholder="Descripción"
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                  rows="2"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Precio</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={form.precio_venta}
+                    onChange={(e) => {
+                      setForm({ ...form, precio_venta: e.target.value });
+                      if (erroresForm.precio_venta) setErroresForm({ ...erroresForm, precio_venta: "" });
+                    }}
+                    placeholder="0.00"
+                    className={`w-full px-3 py-2 border rounded-lg text-sm ${erroresForm.precio_venta ? "border-red-500 bg-red-50" : ""}`}
+                  />
+                  {erroresForm.precio_venta && <p className="text-red-600 text-xs mt-1">{erroresForm.precio_venta}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Stock</label>
+                  <input
+                    type="number"
+                    value={form.stock_actual}
+                    onChange={(e) => {
+                      setForm({ ...form, stock_actual: e.target.value });
+                      if (erroresForm.stock_actual) setErroresForm({ ...erroresForm, stock_actual: "" });
+                    }}
+                    placeholder="0"
+                    className={`w-full px-3 py-2 border rounded-lg text-sm ${erroresForm.stock_actual ? "border-red-500 bg-red-50" : ""}`}
+                  />
+                  {erroresForm.stock_actual && <p className="text-red-600 text-xs mt-1">{erroresForm.stock_actual}</p>}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Stock Mín</label>
+                  <input
+                    type="number"
+                    value={form.stock_minimo}
+                    onChange={(e) => setForm({ ...form, stock_minimo: e.target.value })}
+                    placeholder="0"
+                    className="w-full px-3 py-2 border rounded-lg text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Vencimiento</label>
+                  <input
+                    type="date"
+                    value={form.fecha_vencimiento}
+                    onChange={(e) => setForm({ ...form, fecha_vencimiento: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-1">Categoría</label>
+                <select
+                  value={form.categoria_id || ""}
+                  onChange={(e) => setForm({ ...form, categoria_id: e.target.value || null })}
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                >
+                  <option value="">-- Seleccionar --</option>
+                  {categorias.map((c) => (
+                    <option key={c.id} value={c.id}>{c.nombre}</option>
+                  ))}
+                </select>
+              </div>
+
+              <label className="flex items-center gap-2 mt-4">
+                <input
+                  type="checkbox"
+                  checked={form.estado}
+                  onChange={(e) => setForm({ ...form, estado: e.target.checked })}
+                  className="w-4 h-4"
+                />
+                <span className="text-sm font-medium">Activo</span>
+              </label>
+
+              <div className="flex gap-2 mt-6">
+                <button
+                  onClick={() => setOpen(false)}
+                  className="flex-1 px-4 py-2 bg-slate-300 text-slate-700 rounded-lg hover:bg-slate-400 font-semibold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={save}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
+                >
+                  Guardar
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
     </div>
   );
 }

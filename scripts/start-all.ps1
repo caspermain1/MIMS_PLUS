@@ -1,7 +1,9 @@
 # start-all.ps1
 # Opens two new PowerShell windows (or pwsh) to run backend and frontend each in their own terminal
 # Usage: .\scripts\start-all.ps1
-
+# esto es por si falla la termina, es como para permitir cualquier tipo de script sin necesidad de solicitar permiso
+#Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+#Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force
 $repo = Split-Path -Parent $PSScriptRoot
 
 $backendCmd = "cd '$repo'; .\scripts\start-backend.ps1"

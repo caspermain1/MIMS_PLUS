@@ -222,3 +222,6 @@ export default function Reseñas() {
           </button>
         </div>
       )}
+      </div>
+    );
+  }

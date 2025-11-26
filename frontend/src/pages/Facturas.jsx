@@ -1,8 +1,9 @@
 // src/pages/Facturas.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import api from "../services/api.js";
 import Modal from "../components/Modal";
 import { exportarFacturaAPDF } from "../services/pdfServices.js";
+import { Calendar, Search, Download } from "lucide-react";
 
 export default function Facturas() {
   const [facturas, setFacturas] = useState([]);
@@ -13,6 +14,7 @@ export default function Facturas() {
   const [editModal, setEditModal] = useState(false); // Modal para editar factura
   const [detalles, setDetalles] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [medToAdd, setMedToAdd] = useState("");
 
   const [form, setForm] = useState({
     cliente: "",
@@ -30,6 +32,15 @@ export default function Facturas() {
   const baseUsuarios = "/usuarios/usuarios/";
   const baseMedicamentos = "/inventario/medicamentos-crud/";
 
+  // filtros y paginación
+  const [fechaInicio, setFechaInicio] = useState("");
+  const [fechaFin, setFechaFin] = useState("");
+  const [minTotal, setMinTotal] = useState("");
+  const [maxTotal, setMaxTotal] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(8);
+  const [loading, setLoading] = useState(false);
+
   useEffect(() => {
     cargarFacturas();
     cargarUsuarios();
@@ -37,12 +48,15 @@ export default function Facturas() {
   }, []);
 
   const cargarFacturas = async () => {
+    setLoading(true);
     try {
       const res = await api.get(baseFacturas);
-      setFacturas(res.data);
+      setFacturas(res.data || []);
     } catch (err) {
       console.error("Error cargando facturas:", err);
       alert("Error cargando facturas");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -109,6 +123,13 @@ export default function Facturas() {
     });
   };
 
+  const actualizarCantidad = (index, cantidad) => {
+    const nuevos = [...form.detalles];
+    nuevos[index].cantidad = Number(cantidad);
+    nuevos[index].subtotal = Number(nuevos[index].cantidad) * Number(nuevos[index].precio_unitario || 0);
+    setForm({ ...form, detalles: nuevos, total: nuevos.reduce((acc, d) => acc + Number(d.subtotal || 0), 0) });
+  };
+
   const saveFactura = async () => {
     try {
       // Validar que el cliente esté seleccionado
@@ -160,19 +181,37 @@ export default function Facturas() {
   };
 
   const descargarPDF = (factura) => {
-    exportarFacturaAPDF(factura, factura.detalles || []);
+    // si la factura ya viene con detalles, generamos via jsPDF en cliente
+    try {
+      exportarFacturaAPDF(factura, factura.detalles || []);
+    } catch (err) {
+      console.error("Error exportando PDF:", err);
+      alert("Error generando PDF");
+    }
   };
 
-  const facturasFiltradas = facturas.filter((f) =>
-    f.cliente.toLowerCase().includes(search.toLowerCase())
-  );
+  // Filtrado avanzado (cliente): búsqueda + rango fechas + total
+  const facturasFiltradas = useMemo(() => {
+    let out = [...facturas];
+    if (search) {
+      out = out.filter((f) => (f.cliente_nombre || String(f.cliente || "")).toLowerCase().includes(search.toLowerCase()));
+    }
+    if (fechaInicio) out = out.filter((f) => new Date(f.fecha_emision) >= new Date(fechaInicio));
+    if (fechaFin) out = out.filter((f) => new Date(f.fecha_emision) <= new Date(fechaFin));
+    if (minTotal) out = out.filter((f) => Number(f.total) >= Number(minTotal));
+    if (maxTotal) out = out.filter((f) => Number(f.total) <= Number(maxTotal));
+    return out.sort((a,b)=> new Date(b.fecha_emision) - new Date(a.fecha_emision));
+  }, [facturas, search, fechaInicio, fechaFin, minTotal, maxTotal]);
+
+  const totalPages = Math.max(1, Math.ceil(facturasFiltradas.length / pageSize));
+  const pagedFacturas = facturasFiltradas.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <div className="p-6">
       <header className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold">Gestión de Facturas</h2>
 
-        <div className="flex gap-3">
+        <div className="flex gap-3 items-center">
           <button
             onClick={() => {
               setForm({
@@ -200,10 +239,14 @@ export default function Facturas() {
             Refrescar
           </button>
         </div>
+        <div className="ml-6 flex gap-3 items-center">
+          <div className="text-sm text-slate-600">Facturas totales: <strong className="text-slate-800">{facturas.length}</strong></div>
+          <div className="text-sm text-slate-600">Gastado total: <strong className="text-green-600">${facturas.reduce((s,f)=>s+Number(f.total||0),0).toLocaleString('es-CO')}</strong></div>
+        </div>
       </header>
 
-      {/* Campo de búsqueda */}
-      <div className="mb-4">
+      {/* Filtros rápidos */}
+      <div className="mb-4 grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
         <input
           type="text"
           placeholder="Buscar por cliente"
@@ -211,6 +254,18 @@ export default function Facturas() {
           onChange={(e) => setSearch(e.target.value)}
           className="w-full px-4 py-2 border rounded-lg"
         />
+        <div>
+          <label className="block text-xs text-gray-500">Desde</label>
+          <input type="date" value={fechaInicio} onChange={(e)=>setFechaInicio(e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500">Hasta</label>
+          <input type="date" value={fechaFin} onChange={(e)=>setFechaFin(e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+        </div>
+        <div className="flex gap-2 items-center">
+          <input type="number" placeholder="Min total" value={minTotal} onChange={(e)=>setMinTotal(e.target.value)} className="px-3 py-2 border rounded-lg w-full" />
+          <input type="number" placeholder="Max total" value={maxTotal} onChange={(e)=>setMaxTotal(e.target.value)} className="px-3 py-2 border rounded-lg w-full" />
+        </div>
       </div>
 
       {/* Tabla */}
@@ -227,21 +282,47 @@ export default function Facturas() {
           </thead>
 
           <tbody>
-            {facturasFiltradas.map((f) => (
+            {loading ? (
+              <tr><td colSpan={5} className="text-center py-6">Cargando facturas...</td></tr>
+            ) : pagedFacturas.length === 0 ? (
+              <tr><td colSpan={5} className="text-center py-6">No se encontraron facturas con esos filtros</td></tr>
+            ) : (
+              pagedFacturas.map((f) => (
               <tr key={f.id} className="border-t hover:bg-slate-50 cursor-pointer">
                 <td className="py-2">{f.id}</td>
                 <td>{f.cliente_nombre || f.cliente}</td>
                 <td>{new Date(f.fecha_emision).toLocaleDateString()}</td>
-                <td className="font-semibold">${f.total}</td>
+                <td className="font-semibold">${Number(f.total).toLocaleString('es-CO')}</td>
                 <td className="flex gap-2">
                   <button
-                    onClick={() => setOpen(true)}
+                    onClick={() => { setSelected(f); setOpen(true); }}
                     className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-1"
                   >
                     👁️ Ver
                   </button>
                   <button
-                    onClick={() => setEditModal(true)}
+                    onClick={() => {
+                      // prefill form for edición
+                      setSelected(f);
+                      setForm({
+                        cliente: f.cliente || f.cliente_nombre || "",
+                        empleado: f.empleado || "",
+                        metodo_pago: f.metodo_pago || "efectivo",
+                        correo_enviado: !!f.correo_enviado,
+                        direccion_entrega: f.direccion_entrega || "",
+                        observaciones: f.observaciones || "",
+                        fecha_emision: f.fecha_emision ? f.fecha_emision.slice(0, 10) : new Date().toISOString().slice(0, 10),
+                        detalles: (f.detalles || []).map((d) => ({
+                          medicamento_id: d.medicamento,
+                          medicamento_nombre: d.medicamento_nombre || d.nombre || "",
+                          cantidad: d.cantidad,
+                          precio_unitario: d.precio_unitario,
+                          subtotal: d.subtotal,
+                        })),
+                        total: f.total || 0,
+                      });
+                      setEditModal(true);
+                    }}
                     className="px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 flex items-center gap-1"
                   >
                     ✏️ Editar
@@ -250,14 +331,130 @@ export default function Facturas() {
                     onClick={() => descargarPDF(f)}
                     className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-1"
                   >
-                    📄 PDF
+                    <Download size={14} /> PDF
                   </button>
                 </td>
               </tr>
-            ))}
+              ))
+            )}
           </tbody>
         </table>
       </div>
+
+      {/* Paginación */}
+      <div className="mt-4 flex items-center justify-between">
+        <div className="text-sm text-slate-600">Mostrando {(page-1)*pageSize+1} - {Math.min(page*pageSize, facturasFiltradas.length)} de {facturasFiltradas.length}</div>
+        <div className="flex items-center gap-2">
+          <select value={pageSize} onChange={(e)=>{ setPageSize(Number(e.target.value)); setPage(1); }} className="px-3 py-1 border rounded">
+            {[5,8,12,20].map(n => <option key={n} value={n}>{n} / página</option>)}
+          </select>
+          <div className="flex items-center gap-2">
+            <button disabled={page<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} className="px-3 py-1 border rounded disabled:opacity-50">Anterior</button>
+            <span className="px-3 py-1 border rounded">{page} / {totalPages}</span>
+            <button disabled={page>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))} className="px-3 py-1 border rounded disabled:opacity-50">Siguiente</button>
+          </div>
+        </div>
+      </div>
+      {/* Modal ver factura */}
+      <Modal open={open} title={selected ? `Factura #${selected.id}` : "Factura"} onClose={()=>{ setOpen(false); setSelected(null); }}>
+        {selected ? (
+          <div>
+            <div className="text-sm text-gray-600 mb-3">Cliente: {selected.cliente_nombre || selected.cliente}</div>
+            <div className="text-sm text-gray-600 mb-3">Fecha: {new Date(selected.fecha_emision).toLocaleString()}</div>
+            <div className="border rounded p-3 mb-3">
+              <ul className="space-y-2">
+                {(selected.detalles || []).map(d=> (
+                  <li key={d.id} className="flex justify-between"><span>{d.medicamento_nombre} × {d.cantidad}</span><strong>${Number(d.subtotal).toLocaleString('es-CO')}</strong></li>
+                ))}
+              </ul>
+            </div>
+            <div className="flex justify-between items-center"><strong>Total: ${Number(selected.total).toLocaleString('es-CO')}</strong>
+            <div className="flex gap-2"><button className="px-3 py-1 bg-green-600 text-white rounded" onClick={()=>descargarPDF(selected)}>Descargar</button></div></div>
+          </div>
+        ) : <div>No hay factura seleccionada</div>}
+      </Modal>
+
+      {/* Modal crear/editar factura */}
+      <Modal
+        open={editModal}
+        title={selected ? `Editar factura #${selected.id}` : "Nueva factura"}
+        onClose={() => { setEditModal(false); setSelected(null); }}
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <label className="w-full">
+              Cliente
+              <select value={form.cliente} onChange={(e)=>setForm({...form, cliente: e.target.value})} className="w-full px-3 py-2 border rounded mt-1">
+                <option value="">-- Seleccionar cliente --</option>
+                {usuarios.map(u=> (<option key={u.id} value={u.id}>{u.nombre || u.email || u.username}</option>))}
+              </select>
+            </label>
+
+            <label>
+              Fecha emisión
+              <input type="date" value={form.fecha_emision} onChange={(e)=>setForm({...form, fecha_emision: e.target.value})} className="w-full px-3 py-2 border rounded mt-1" />
+            </label>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <input type="text" placeholder="Dirección de entrega" value={form.direccion_entrega} onChange={(e)=>setForm({...form, direccion_entrega: e.target.value})} className="px-3 py-2 border rounded" />
+            <select value={form.metodo_pago} onChange={(e)=>setForm({...form, metodo_pago: e.target.value})} className="px-3 py-2 border rounded">
+              <option value="efectivo">Efectivo</option>
+              <option value="tarjeta">Tarjeta</option>
+              <option value="transferencia">Transferencia</option>
+            </select>
+          </div>
+
+          <textarea placeholder="Observaciones" value={form.observaciones} onChange={(e)=>setForm({...form, observaciones: e.target.value})} className="w-full px-3 py-2 border rounded" />
+
+          {/* agregar medicamentos */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-end">
+            <div>
+              <label className="block text-xs text-gray-500">Agregar medicamento</label>
+              <select value={medToAdd} onChange={(e)=>setMedToAdd(e.target.value)} className="w-full px-3 py-2 border rounded mt-1">
+                <option value="">-- seleccionar --</option>
+                {medicamentos.map(m=> (<option key={m.id} value={m.id}>{m.nombre} — ${m.precio_venta}</option>))}
+              </select>
+            </div>
+            <div>
+              <button onClick={()=>{ if(!medToAdd) return; const m = medicamentos.find(x=>String(x.id)===String(medToAdd)); if(m) agregarMedicamento(m); setMedToAdd(""); }} className="px-3 py-2 bg-blue-600 text-white rounded">Agregar</button>
+            </div>
+            <div className="text-right font-semibold">Total: ${Number(form.total || 0).toLocaleString('es-CO')}</div>
+          </div>
+
+          {/* detalles */}
+          <div className="border rounded p-2">
+            <table className="w-full">
+              <thead>
+                <tr>
+                  <th className="text-left">Medicamento</th>
+                  <th>Cantidad</th>
+                  <th>Precio</th>
+                  <th>Subtotal</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {(form.detalles || []).map((d, i) => (
+                  <tr key={i} className="border-t">
+                    <td className="py-2">{d.medicamento_nombre}</td>
+                    <td><input type="number" min={1} value={d.cantidad} onChange={(e)=>actualizarCantidad(i, e.target.value)} className="w-20 px-2 py-1 border rounded" /></td>
+                    <td>${Number(d.precio_unitario).toLocaleString('es-CO')}</td>
+                    <td>${Number(d.subtotal).toLocaleString('es-CO')}</td>
+                    <td><button onClick={()=>eliminarMedicamento(i)} className="px-2 py-1 bg-red-500 text-white rounded">Eliminar</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button onClick={()=>{ setEditModal(false); setSelected(null); }} className="px-4 py-2 border rounded">Cancelar</button>
+            <button onClick={saveFactura} className="px-4 py-2 bg-green-600 text-white rounded">Guardar</button>
+          </div>
+        </div>
+      </Modal>
+
     </div>
   );
 }

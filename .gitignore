@@ -32,3 +32,4 @@ htmlcov/
 
 # Frontend dependencies (do not commit node_modules)
 frontend/node_modules/
+MIMS_PLUS/
